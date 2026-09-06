@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mock — fundo da tela de partida</title>
+<style>
+  :root {
+    --red: #e53935; --green: #43a047; --yellow: #fdd835; --blue: #1e88e5;
+    --ink: #1f2430;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; min-height: 100dvh; transition: background .25s; color: var(--fg); }
+
+  /* ------- variantes de fundo ------- */
+  body[data-bg="creme"]   { --bg: #f6f1e7; --fg: #1f2430; --panel: #ffffffcc; --status: #3b4252; background: var(--bg); }
+  body[data-bg="madeira"] { --bg: #3a2416; --fg: #f4ede2; --panel: #00000033; --status: #f4ede2;
+    background:
+      repeating-linear-gradient(90deg, #00000010 0 2px, transparent 2px 38px),
+      repeating-linear-gradient(0deg, #ffffff06 0 1px, transparent 1px 7px),
+      linear-gradient(180deg, #4a2e1c, #34200f 60%, #2b1a0d); }
+  body[data-bg="ardosia"] { --bg: #232a36; --fg: #eef1f6; --panel: #ffffff10; --status: #eef1f6;
+    background: radial-gradient(120% 80% at 50% 0%, #2f3846, #1c222c 70%); }
+
+  .toggle { display: flex; gap: 6px; padding: 10px 12px 6px; justify-content: center; }
+  .toggle button { flex: 1; max-width: 130px; padding: 9px 0; border-radius: 999px; border: 1.5px solid #0002; background: #fff; color: #1f2430; font-weight: 600; font-size: 14px; }
+  .toggle button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .hint { text-align: center; font-size: 12px; opacity: .7; margin: 0 0 6px; }
+
+  .stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 6px 10px 18px; }
+  .board { width: min(100%, 92vh - 200px, 480px); aspect-ratio: 1; border-radius: 14px;
+    box-shadow: 0 18px 40px -12px #0007, 0 2px 0 #0002; background: #fff; overflow: hidden; }
+  svg { display: block; width: 100%; height: 100%; }
+
+  .hud { width: min(100%, 480px); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .status { flex: 1; text-align: center; font-size: 17px; font-weight: 600; color: var(--status); padding: 12px 14px; border-radius: 14px; background: var(--panel); }
+  .menu { width: 48px; height: 48px; border-radius: 14px; border: 0; background: var(--panel); color: var(--status); font-size: 24px; font-weight: 700; }
+
+  @keyframes pulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+  @keyframes halo  { 0%,100% { r: 1.35; opacity: .9 } 50% { r: 1.6; opacity: .35 } }
+  .turn-glow { animation: pulse 1.4s ease-in-out infinite; }
+  .halo { animation: halo 1.2s ease-in-out infinite; }
+</style>
+</head>
+<body data-bg="creme">
+  <div class="toggle">
+    <button aria-pressed="true" data-bg="creme">Creme</button>
+    <button data-bg="madeira">Madeira</button>
+    <button data-bg="ardosia">Escuro neutro</button>
+  </div>
+  <p class="hint">mock estático — só pra escolher o fundo. Peças/ícones são um rascunho da direção visual.</p>
+
+  <div class="stage">
+    <div class="board"><svg id="b" viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="hud">
+      <div class="status">Luiz: toque numa peça pra mover</div>
+      <button class="menu" aria-label="Menu">⋮</button>
+    </div>
+  </div>
+
+<script>
+const C = { red:'#e53935', green:'#43a047', yellow:'#fdd835', blue:'#1e88e5' };
+const DARK = { red:'#a0201c', green:'#2a6e2e', yellow:'#b8960a', blue:'#125a9c' };
+const LIGHT = { red:'#ffb3ae', green:'#b7e4b9', yellow:'#fff2a8', blue:'#b6dbff' };
+
+// ---- anel de 52 casas (sentido horário, começa na saída do vermelho) ----
+const ring = [];
+for (let c=1;c<=5;c++) ring.push([6,c]);
+for (let r=5;r>=0;r--) ring.push([r,6]);
+ring.push([0,7]);
+for (let r=0;r<=5;r++) ring.push([r,8]);
+for (let c=9;c<=14;c++) ring.push([6,c]);
+ring.push([7,14]);
+for (let c=14;c>=9;c--) ring.push([8,c]);
+for (let r=9;r<=14;r++) ring.push([r,8]);
+ring.push([14,7]);
+for (let r=14;r>=9;r--) ring.push([r,6]);
+for (let c=5;c>=0;c--) ring.push([8,c]);
+ring.push([7,0]);
+ring.push([6,0]);
+const START = { red:0, green:13, yellow:26, blue:39 };
+const SAFE = new Set([0,8,13,21,26,34,39,47]);
+const home = {
+  red:    [[7,1],[7,2],[7,3],[7,4],[7,5]],
+  green:  [[1,7],[2,7],[3,7],[4,7],[5,7]],
+  yellow: [[7,13],[7,12],[7,11],[7,10],[7,9]],
+  blue:   [[13,7],[12,7],[11,7],[10,7],[9,7]],
+};
+
+const svg = document.getElementById('b');
+const NS = 'http://www.w3.org/2000/svg';
+const el = (t, a={}, parent=svg) => { const e=document.createElementNS(NS,t); for (const k in a) e.setAttribute(k,a[k]); parent.appendChild(e); return e; };
+
+// defs: gradientes e sombras
+const defs = el('defs');
+defs.innerHTML = `
+  <filter id="sh" x="-40%" y="-40%" width="180%" height="200%"><feDropShadow dx="0" dy="0.10" stdDeviation="0.08" flood-color="#000" flood-opacity=".45"/></filter>
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="0.05" stdDeviation="0.05" flood-color="#000" flood-opacity=".25"/></filter>
+  ${Object.keys(C).map(k=>`
+  <radialGradient id="g-${k}" cx="35%" cy="30%" r="75%">
+    <stop offset="0" stop-color="#fff" stop-opacity=".85"/>
+    <stop offset=".25" stop-color="${LIGHT[k]}"/>
+    <stop offset=".6" stop-color="${C[k]}"/>
+    <stop offset="1" stop-color="${DARK[k]}"/>
+  </radialGradient>`).join('')}
+  <linearGradient id="fire" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff6d00"/><stop offset=".6" stop-color="#ffc400"/><stop offset="1" stop-color="#fff59d"/></linearGradient>
+`;
+
+// fundo branco do tabuleiro
+el('rect',{x:0,y:0,width:15,height:15,fill:'#fff'});
+
+// grade das casas do anel
+ring.forEach(([r,c],i)=>{
+  let fill = '#fff';
+  for (const k in START) if (START[k]===i) fill = C[k];
+  el('rect',{x:c,y:r,width:1,height:1,fill,stroke:'#2b2f3a','stroke-width':.045});
+});
+// retas finais
+for (const k in home) home[k].forEach(([r,c])=>el('rect',{x:c,y:r,width:1,height:1,fill:C[k],stroke:'#2b2f3a','stroke-width':.045}));
+// estrelas (casas seguras)
+[8,21,34,47].forEach(i=>{ const [r,c]=ring[i]; star(c+.5,r+.5,.36,'#2b2f3a'); });
+// setinhas de entrada da reta final (discretas)
+arrow(0.5,7.5,0,'#fff'); arrow(7.5,0.5,90,'#fff'); arrow(14.5,7.5,180,'#fff'); arrow(7.5,14.5,270,'#fff');
+
+// centro
+el('polygon',{points:'6,6 9,6 7.5,7.5',fill:C.green});
+el('polygon',{points:'9,6 9,9 7.5,7.5',fill:C.yellow});
+el('polygon',{points:'9,9 6,9 7.5,7.5',fill:C.blue});
+el('polygon',{points:'6,9 6,6 7.5,7.5',fill:C.red});
+el('rect',{x:6,y:6,width:3,height:3,fill:'none',stroke:'#2b2f3a','stroke-width':.045});
+
+// bases
+const bases = { red:[0,0], green:[0,9], yellow:[9,9], blue:[9,0] };
+const players = { red:{name:'Luiz',av:'🦊'}, green:{name:'Maria',av:'🐼'}, yellow:{name:'João',av:'🦁'}, blue:{name:'Ana',av:'🐸'} };
+const TURN = 'red';
+for (const k in bases) {
+  const [r,c] = bases[k];
+  el('rect',{x:c,y:r,width:6,height:6,fill:C[k]});
+  if (k===TURN) el('rect',{x:c+.18,y:r+.18,width:5.64,height:5.64,rx:.5,fill:'none',stroke:'#fff','stroke-width':.16,class:'turn-glow'});
+  el('rect',{x:c+.9,y:r+.9,width:4.2,height:4.2,rx:.35,fill:'#fff',filter:'url(#soft)'});
+  // 4 alvéolos das peças
+  [[1.9,1.9],[4.1,1.9],[1.9,4.1],[4.1,4.1]].forEach(([dx,dy])=>el('circle',{cx:c+dx,cy:r+dy,r:.62,fill:LIGHT[k],stroke:DARK[k],'stroke-width':.05,opacity:.9}));
+  // avatar + nome na faixa de baixo da base
+  const t = el('text',{x:c+3,y:r+5.62,'text-anchor':'middle','font-size':.62,'font-weight':'700',fill:'#fff',style:'paint-order:stroke;stroke:#00000055;stroke-width:.06'});
+  t.textContent = `${players[k].av} ${players[k].name}`;
+}
+
+// ---- casas de poder (6) — mesma linguagem visual ----
+const POW = [ [3,'rocket'], [17,'shield'], [23,'freeze'], [30,'x2'], [36,'bomb'], [45,'fire'] ];
+POW.forEach(([i,kind])=>{ const [r,c]=ring[i]; powerTile(c,r,kind); });
+
+// ---- peças ----
+// vermelho: 2 na base, 1 no anel selecionável, 1 com escudo
+pawnAt(bases.red[1]+1.9, bases.red[0]+1.9, 'red');
+pawnAt(bases.red[1]+4.1, bases.red[0]+1.9, 'red');
+pawnRing(5, 'red', {select:true});
+pawnRing(11, 'red', {shield:true});
+// verde
+pawnAt(bases.green[1]+1.9, bases.green[0]+1.9, 'green');
+pawnAt(bases.green[1]+4.1, bases.green[0]+4.1, 'green');
+pawnRing(19, 'green', {fire:true});
+pawnRing(26+7, 'green');
+// amarelo
+pawnAt(bases.yellow[1]+1.9, bases.yellow[0]+1.9, 'yellow');
+pawnAt(bases.yellow[1]+4.1, bases.yellow[0]+1.9, 'yellow');
+pawnAt(bases.yellow[1]+1.9, bases.yellow[0]+4.1, 'yellow');
+pawnRing(28, 'yellow', {frozen:true});
+// azul
+pawnAt(bases.blue[1]+1.9, bases.blue[0]+1.9, 'blue');
+pawnAt(bases.blue[1]+4.1, bases.blue[0]+4.1, 'blue');
+pawnRing(41, 'blue');
+pawnHome('blue', 2);
+
+// ---- dado na base do jogador da vez ----
+dice(bases[TURN][1]+3, bases[TURN][0]+3, 5, C[TURN]);
+
+// ================= helpers =================
+function star(cx,cy,R,fill){
+  const pts=[]; for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5; const rr=i%2?R*.45:R; pts.push([cx+rr*Math.cos(a),cy+rr*Math.sin(a)]); }
+  el('polygon',{points:pts.map(p=>p.join(',')).join(' '),fill,opacity:.85});
+}
+function arrow(cx,cy,rot,fill){
+  el('polygon',{points:'-.28,-.2 .12,0 -.28,.2',transform:`translate(${cx} ${cy}) rotate(${rot})`,fill,opacity:.9});
+}
+function pawnRing(i,color,o){ const [r,c]=ring[i]; pawnAt(c+.5,r+.5,color,o); }
+function pawnHome(color,idx){ const [r,c]=home[color][idx]; pawnAt(c+.5,r+.5,color); }
+function pawnAt(cx,cy,color,o={}){
+  const g = el('g',{transform:`translate(${cx} ${cy})`});
+  if (o.select) el('circle',{cx:0,cy:.1,r:1.4,fill:'none',stroke:'#fff','stroke-width':.12,class:'halo',style:'r:.6'} ,g);
+  if (o.shield) el('circle',{cx:0,cy:.05,r:.56,fill:'#4fc3f7',opacity:.28,stroke:'#4fc3f7','stroke-width':.07},g);
+  if (o.frozen) el('circle',{cx:0,cy:.05,r:.5,fill:'#e1f5fe',opacity:.55,stroke:'#81d4fa','stroke-width':.06},g);
+  // sombra
+  el('ellipse',{cx:0,cy:.36,rx:.36,ry:.13,fill:'#000',opacity:.35},g);
+  // corpo do peão (silhueta)
+  el('path',{d:'M-.34,.34 C-.34,.15 -.16,.08 -.11,-.06 L-.11,-.1 C-.24,-.16 -.28,-.42 -.05,-.44 L.05,-.44 C.28,-.42 .24,-.16 .11,-.1 L.11,-.06 C.16,.08 .34,.15 .34,.34 Z',fill:`url(#g-${color})`,stroke:DARK[color],'stroke-width':.04,filter:'url(#sh)'},g);
+  el('circle',{cx:0,cy:-.26,r:.2,fill:`url(#g-${color})`,stroke:DARK[color],'stroke-width':.04},g);
+  el('ellipse',{cx:-.07,cy:-.32,rx:.07,ry:.05,fill:'#fff',opacity:.8},g);
+  if (o.fire) { el('path',{d:'M-.16,-.4 C-.3,-.6 -.1,-.75 -.05,-.9 C.05,-.75 .2,-.7 .16,-.5 C.3,-.6 .25,-.35 .05,-.3 Z',fill:'url(#fire)',opacity:.95},g); }
+  if (o.frozen) { el('path',{d:'M0,-.62 L0,.22 M-.36,-.41 L.36,.01 M-.36,.01 L.36,-.41',stroke:'#4fc3f7','stroke-width':.05,opacity:.9},g); }
+  if (o.shield) { el('path',{d:'M.28,-.62 l.16,.06 v.14 c0,.12 -.08,.2 -.16,.24 c-.08,-.04 -.16,-.12 -.16,-.24 v-.14 z',fill:'#29b6f6',stroke:'#fff','stroke-width':.03},g); }
+}
+function powerTile(c,r,kind){
+  const g = el('g',{transform:`translate(${c+.5} ${r+.5})`});
+  el('rect',{x:-.4,y:-.4,width:.8,height:.8,rx:.18,fill:'#fff',stroke:'#2b2f3a','stroke-width':.06,filter:'url(#soft)'},g);
+  const ink = '#2b2f3a';
+  switch(kind){
+    case 'rocket': el('path',{d:'M0,-.3 C.14,-.16 .14,.06 .08,.14 L-.08,.14 C-.14,.06 -.14,-.16 0,-.3 Z M-.08,.06 L-.2,.18 M.08,.06 L.2,.18 M0,.14 L0,.28',fill:'#ff7043',stroke:ink,'stroke-width':.04,'stroke-linejoin':'round'},g); break;
+    case 'shield': el('path',{d:'M0,-.3 L.24,-.2 V.02 C.24,.16 .12,.26 0,.3 C-.12,.26 -.24,.16 -.24,.02 V-.2 Z',fill:'#29b6f6',stroke:ink,'stroke-width':.04},g); break;
+    case 'freeze': el('path',{d:'M0,-.3 V.3 M-.26,-.15 L.26,.15 M-.26,.15 L.26,-.15',stroke:'#29b6f6','stroke-width':.07,'stroke-linecap':'round'},g); break;
+    case 'bomb': el('circle',{cx:-.02,cy:.06,r:.2,fill:'#2b2f3a'},g); el('path',{d:'M.1,-.1 C.16,-.22 .22,-.24 .28,-.3',stroke:'#ff7043','stroke-width':.05,fill:'none','stroke-linecap':'round'},g); el('circle',{cx:.29,cy:-.31,r:.05,fill:'#ffc400'},g); break;
+    case 'fire': el('path',{d:'M-.1,.28 C-.3,.1 -.2,-.12 -.02,-.3 C.04,-.14 .16,-.1 .14,.02 C.26,-.06 .3,.12 .14,.28 Z',fill:'url(#fire)',stroke:ink,'stroke-width':.04,'stroke-linejoin':'round'},g); break;
+    case 'x2': { const t=el('text',{x:0,y:.16,'text-anchor':'middle','font-size':.42,'font-weight':'900',fill:'#7e57c2'},g); t.textContent='×2'; break; }
+  }
+}
+function dice(cx,cy,face,edge){
+  const g = el('g',{transform:`translate(${cx} ${cy})`});
+  const s=.72; // meio-lado
+  el('ellipse',{cx:.1,cy:s+.25,rx:s*1.05,ry:.22,fill:'#000',opacity:.3},g);
+  // faces em pseudo-isométrico
+  const top = `M${-s},${-s*.35} L0,${-s*.75} L${s},${-s*.35} L0,${s*.05} Z`;
+  const left = `M${-s},${-s*.35} L0,${s*.05} L0,${s*.85} L${-s},${s*.45} Z`;
+  const right = `M${s},${-s*.35} L0,${s*.05} L0,${s*.85} L${s},${s*.45} Z`;
+  el('path',{d:left,fill:'#e6e6ea',stroke:edge,'stroke-width':.07,'stroke-linejoin':'round'},g);
+  el('path',{d:right,fill:'#cfcfd6',stroke:edge,'stroke-width':.07,'stroke-linejoin':'round'},g);
+  el('path',{d:top,fill:'#fff',stroke:edge,'stroke-width':.07,'stroke-linejoin':'round'},g);
+  // pips da face de cima (5) projetados
+  const P = (u,v)=>[ (u-v)*s*.62, (u+v)*s*.3 - s*.35 ];
+  const pips5 = [[-.6,-.6],[.6,-.6],[0,0],[-.6,.6],[.6,.6]];
+  pips5.forEach(([u,v])=>{ const [x,y]=P(u,v); el('ellipse',{cx:x,cy:y,rx:.09,ry:.055,fill:'#1f2430'},g); });
+  // pips laterais (2 e 3) só decorativos
+  el('ellipse',{cx:-s*.5,cy:s*.12,rx:.055,ry:.08,fill:'#1f2430'},g); el('ellipse',{cx:-s*.5,cy:s*.42,rx:.055,ry:.08,fill:'#1f2430'},g);
+  el('ellipse',{cx:s*.25,cy:s*.2,rx:.055,ry:.08,fill:'#1f2430'},g); el('ellipse',{cx:s*.5,cy:s*.05,rx:.055,ry:.08,fill:'#1f2430'},g); el('ellipse',{cx:s*.75,cy:-.1*s,rx:.055,ry:.08,fill:'#1f2430'},g);
+}
+
+// toggle
+document.querySelectorAll('.toggle button').forEach(b=>b.addEventListener('click',()=>{
+  document.body.dataset.bg=b.dataset.bg;
+  document.querySelectorAll('.toggle button').forEach(x=>x.setAttribute('aria-pressed', x===b));
+}));
+</script>
+</body>
+</html>
