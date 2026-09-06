@@ -59,7 +59,7 @@
 | Só uma jogada possível | **Auto-move configurável** (Ajustes). Padrão **[padrão]**: ligado |
 | Ordem de turnos | Sentido horário pelas cores; **quem começa é sorteado** |
 | Fim da partida | Continua **até sobrar um**. Colocações = ordem de chegada |
-| Encerrar antes | Menu ⋮ → "Encerrar partida": quem não terminou é ranqueado por progresso (peças no centro, depois distância percorrida) **[padrão]** |
+| Encerrar antes | Menu ⋮ → "Encerrar partida" tem duas opções: **"Encerrar sem contar"** (vai pro histórico, sem Elo) e **"Encerrar e ranquear por progresso"** (peças no centro, depois distância percorrida) **[padrão]** |
 | Regras visíveis | Menu ⋮ → "Regras" mostra as regras ativas da partida (modo, poderes ligados, bônus) |
 
 ---
@@ -79,17 +79,18 @@
 ### 2v2
 - Time vence quando as **8 peças** dos dois estão no centro.
 - Parceiro que já terminou as 4 dele **continua jogando com as peças do parceiro** na vez dele.
-- Cair na casa do parceiro **come normalmente** (azar).
-- Jogador removido no meio: **o parceiro assume as peças dele**.
+- **Parceiro conta como adversário só nos pousos:** cair na casa dele com dado, foguete ou mola **come normalmente** (azar). **Fogo NÃO queima o parceiro** ao passar por cima. Mega bomba pega o parceiro (já é "todo mundo no raio").
+- Jogador removido no meio: **o parceiro assume as peças dele**; quem saiu conta como último (seção 8).
 
 ### Deathmatch (tempo real)
 - **Todos jogam ao mesmo tempo**: cada jogador rola o seu dado quando quiser; sem turnos, sem espera além da própria animação (rolar + mover).
 - **Cada jogador tem o seu dado 3D**, na cor dele, que **rola pelo tabuleiro inteiro** e pode trombar nos outros dados.
-- **6** serve só pra sair da base; **não dá jogada extra** e não existe regra dos três 6.
+- **6** tira peça da base **ou** anda 6 casas normalmente; a diferença é que **não dá jogada extra** e não existe regra dos três 6.
 - Peças começam **na base**. Peça comida **volta pra base** e precisa de 6 pra sair.
 - **Reta final bloqueada** (🚫 na 1ª casa): ninguém chega ao centro; as peças ficam circulando pelo anel. O centro mostra **"Alvo ⚔ 8"** e o placar.
-- **Casas seguras:** saída e estrelas são seguras pra todos, **exceto** que o **canhão** de cada base **abate automaticamente** qualquer adversário que parar na **estrela da sua cor** (animação: canhão gira, atira, estouro na estrela; a peça volta pra base e conta como captura do dono do canhão).
-- **Conflitos:** as jogadas são processadas em **fila**, na ordem em que cada dado parou. Enquanto uma peça está **em movimento** ela não pode ser comida (só ao parar).
+- **Casas seguras com prazo (anti-camping):** saída e estrelas protegem por **no máximo 15 s** seguidos; depois a peça fica **vulnerável até mover** (anel de proteção ao redor da peça vai esvaziando como um relógio). **Exceção:** o **canhão** de cada base **abate na hora** qualquer adversário que parar na **estrela da sua cor** (animação: canhão gira, atira, estouro na estrela; a peça volta pra base e conta como captura do dono do canhão).
+- **Conflitos:** o motor resolve cada jogada **no instante em que o dado para** (fila por ordem de parada); a animação é só apresentação. Captura é avaliada **no pouso**: se a peça-alvo ainda está em movimento, ninguém come ninguém e as duas coexistem na casa até alguém mover. Isso evita "comer o vento".
+- **Entrada:** toque simples no dado (rola pra cima e cai) — recomendado no Deathmatch pra tirar a mão da tela rápido; arrasto continua disponível.
 - Sem casas de poder. Sem % de progresso.
 - Colocação final: **capturas** (desc.), desempate por **menos mortes** [padrão: depois progresso].
 
@@ -99,7 +100,7 @@
 
 ### Casas de poder
 - **10 casas** de poder no anel (**8 visíveis + 2 minas escondidas**), em **posições aleatórias** a cada partida. **[padrão]** Nunca em casa segura/saída, nunca na reta final, nunca em casa ocupada no momento do sorteio.
-- **Visíveis:** cada casa mostra o **ícone do poder** (dá pra desviar de propósito). **Segurar o dedo** na casa mostra o que o poder faz.
+- **Visíveis:** cada casa mostra o **ícone do poder** (dá pra desviar de propósito). **Segurar o dedo** na casa mostra o que o poder faz **na área de status abaixo do tabuleiro** (não embaixo do dedo). ⋮ → Regras lista todos os poderes ativos.
 - Casa de poder **não é segura**.
 - Ao pisar, o poder é **consumido imediatamente** e a casa fica vazia. Minas explodidas também contam como consumidas. Quando sobrarem **4** (visíveis + escondidas), repovoa pra **10** em lugares novos (com 2 minas novas escondidas).
 - **Fundo da placa** em tom suave por família (ajuda a ler pela cor): **lilás** = dados (×2, ×3, personalizável) · **azul** = defesa/gelo (escudo, congelar) · **laranja** = impulso (foguete, mola) · **vermelho** = explosivos/fogo (bomba, mega bomba, mina revelada, fogo).
@@ -116,12 +117,12 @@
 | ❄️ **Congelar** (azar) | A peça que pisou fica **1 rodada sem poder ser movida**. Apaga o fogo, se tiver. |
 | 🪀 **Mola** | A peça pula **4 a 9 casas (aleatório)** pra frente. Se pousar em adversário em casa não-segura, **come**. Mesmas regras de reta final do foguete. |
 | 🎯 **Dado personalizável** | Na hora: o jogador **escolhe um número de 1 a 6** e **essa peça** anda imediatamente. Escolher 6 dá jogada extra normal (e conta pros 3 seis). |
-| ✖️2 / ✖️3 **Multiplicador** | Na **próxima vez** do jogador, rola 1 dado e **essa mesma peça** anda o valor **× 2 (ou × 3)**. Um 6 multiplicado é só **12 ou 18 casas**: **não dá jogada extra** e não conta pros três 6. Se a peça não puder andar o valor multiplicado (passaria do centro), o multiplicador é **perdido** e o dado vale como jogada normal (qualquer peça, 6 dá extra) **[padrão]**. |
+| ✖️2 / ✖️3 **Multiplicador** | Na **próxima vez** do jogador, rola 1 dado e **essa mesma peça** anda o valor **× 2 (ou × 3)**. Um 6 multiplicado é só **12 ou 18 casas**: **não dá jogada extra** e não conta pros três 6. Se a peça não puder andar o valor multiplicado (passaria do centro), o multiplicador é **perdido** e o dado vale como jogada normal (qualquer peça, 6 dá extra) **[padrão]**. **Só multiplica o número do dado:** se a peça multiplicada cair em foguete/mola, o pulo usa o valor próprio deles, sem multiplicar. |
 | 🚀 **Foguete** | A peça voa **6 a 20 casas (aleatório)** pra frente. Se pousar em adversário em casa não-segura, **come**. Voa por cima (não interage com o caminho). Entra na reta final normalmente; se exceder o centro, para no **máximo possível**. |
 | 💣 **Bomba** (azar) | **Só a peça que pisou** volta pra base. |
 | 💥 **Mega bomba** (azar) | **Todas as peças num raio de 2 casas** (inclusive as suas e do parceiro), mais a que pisou, voltam pra base. **Casa segura NÃO protege.** **Escudo absorve** (some, peça fica). |
 | 💀 **Mina** (azar, escondida) | Parece casa normal. Quem **parar** nela volta pra base e a mina some. Quem **passar por cima** sem parar **revela** a mina pra todos (fica visível até alguém pisar). **Escudo absorve** (some, peça fica). Peça com **fogo** que passa por cima **detona** a mina (some sem vítima). Sempre 2 no tabuleiro, ligadas por padrão. |
-| 🔥 **Fogo** | A peça fica em chamas por **2 rodadas** do jogador. Enquanto anda, **toda peça adversária que ela passar por cima ou parar em cima volta pra base**, exceto: peças em **casa segura** (ilesas) e peças com **escudo** (o escudo é destruído, a peça fica). Apaga antes se: cair em ❄️ congelar, entrar na reta final, ou ser comida. **[padrão]** Só age em movimento de dado (não durante voo de foguete). |
+| 🔥 **Fogo** | A peça fica em chamas por **1 rodada** do jogador (o próximo movimento dela). Enquanto anda, **toda peça adversária que ela passar por cima ou parar em cima volta pra base**, exceto: peças em **casa segura** (ilesas), peças com **escudo** (o escudo é destruído, a peça fica) e, no 2v2, o **parceiro**. **Parar em cima de escudo** segue a regra do escudo: escudo quebra e **a peça com fogo volta pra onde estava** (quem ela queimou no caminho continua queimado). Apaga antes se: cair em ❄️ congelar, entrar na reta final, ou ser comida. **[padrão]** Só age em movimento de dado (não durante voo de foguete). |
 
 **[padrão]** Peça com fogo pode ser comida normalmente. Peça congelada pode ser comida normalmente.
 
@@ -132,7 +133,7 @@
 - **Cubo real em WebGL** (Three.js + cannon-es): **branco clássico, pontos pretos, arestas na cor do jogador da vez** (como no mock), sombra projetada sobre o tabuleiro, leve animação de repouso.
 - **Descansa dentro da base** da cor de quem joga.
 - **Lançamento por arrasto:** toca, arrasta e solta — direção e velocidade do gesto viram impulso + rotação. O dado **rola por cima do tabuleiro inteiro**, bate nas bordas invisíveis, para, mostra a face; depois de ~1 s volta pra base do próximo jogador.
-- **Toque simples** também lança (impulso aleatório).
+- **Toque simples** também lança: o dado **pula pra cima** com giro aleatório e cai perto de onde estava (sem deslocamento lateral, já que não houve arrasto). Vale em todos os modos.
 - Se parar de quina, recebe um empurrãozinho automático.
 - **Resultado — configurável em Ajustes:**
   - **Física real:** a face que ficou pra cima é o resultado.
@@ -151,8 +152,8 @@
 
 ### Dentro da partida (menu ⋮ → Jogadores)
 - **Adicionar:** escolhe jogador (ou cria) numa **cor livre**; começa da base.
-- **Remover:** peças somem; **não conta a partida** pra ele. Em 2v2, o parceiro assume as peças.
-- **Substituir:** fulano sai (não conta pra ele), ciclano assume as peças e conta pra ele.
+- **Remover:** peças somem; ele **conta como último lugar** na partida (anti-evasão de Elo). Em 2v2, o parceiro assume as peças.
+- **Substituir:** fulano sai (**conta como último**), ciclano assume as peças e conta pra ele normalmente.
 - **Trocar cor:** o jogador passa a controlar outra cor livre (ou troca com outro jogador, se ambos concordarem) **[padrão]**.
 - **Pausar:** pula a vez até despausar. Se a partida acabar com ele pausado, é ranqueado por progresso após os que terminaram **[padrão]**.
 
@@ -163,7 +164,8 @@
 - **Elo separado por modo** (Clássico, Poderes, 2v2, 2v2 Poderes, Rápido, 5 Minutos, Deathmatch). Início **1000**, **K = 32**.
 - Individual: cada jogador é comparado par a par com cada outro conforme a colocação final.
 - 2v2: **média do Elo da dupla** vs média da outra; os dois da dupla ganham/perdem o mesmo.
-- Jogador adicionado no meio conta normal. Removido/substituído (o que saiu) **não conta**.
+- Jogador adicionado no meio conta normal. **Removido ou substituído (o que saiu) conta como último** — evita sair pra proteger o Elo. Quem saiu antes empata em último entre si, ordenado por hora de saída (o último a sair fica na frente) **[padrão]**.
+- **"Encerrar partida"** (menu ⋮, encerra pra todos): a partida vai pro histórico como **encerrada** e **não mexe no Elo de ninguém**. Se quiserem contar, usam "Encerrar e ranquear por progresso" **[padrão]**.
 - **Página Ranking:** seletor de **modo** + filtro de **período** (semana / mês / ano / tudo). Lista por Elo, com partidas, vitórias e Δ Elo no período.
 - Elo é **recalculado a partir do histórico** (fonte da verdade = partidas), então o backup JSON é sempre consistente.
 
