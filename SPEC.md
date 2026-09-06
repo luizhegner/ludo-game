@@ -11,6 +11,7 @@
 - Preservar da referência: leitura rápida do tabuleiro, cores fortes, peças grandes, poderes visíveis, partida fácil de começar, poucos controles.
 - Melhorar: clareza das regras (determinísticas, sem discussão na mesa), feedback, persistência, histórico, ranking, dado físico, consistência visual, offline.
 - **Pendente:** captura de tela da referência (o usuário vai anexar). Ela guia composição de tela, tamanho relativo dos elementos e visual dos poderes.
+- **Direção visual aprovada** com base no mock `mocks/fundo.html` (peças 3D, casas de poder padronizadas, avatar+nome nas bases, dado branco com arestas coloridas, fundo creme).
 
 ---
 
@@ -27,7 +28,7 @@
 | Nome / ícone | **"Ludo"**, ícone com as 4 cores (192, 512 e maskable) |
 | Idioma | Somente português (BR) |
 | Cores | Tabuleiro clássico brasileiro (Estrela): **vermelho, verde, amarelo, azul**, cruz branca no meio. Cores vivas e saturadas — a orientação do jogo é pela cor |
-| Fundo da tela de partida | **A definir por mock** (creme claro × madeira escura). Páginas de menu: fundo claro |
+| Fundo | **Creme claro** (`#f6f1e7`) em todo o app, inclusive na tela de partida, com sombra suave atrás do tabuleiro. Sem textura de madeira |
 
 ---
 
@@ -89,7 +90,7 @@
 - Ao pisar, o poder é **consumido imediatamente** e a casa fica vazia. Quando sobrarem **2**, repovoa pra **6** em lugares novos.
 - **Encadeia:** se um poder (foguete, dado extra…) levar a peça a outra casa de poder, ativa de novo.
 - Cada poder pode ser **ligado/desligado** na configuração da partida.
-- Efeitos "na próxima vez" (dado duplo, x2, x3): só **um pendente por jogador**; pegar outro substitui o anterior **[padrão]**.
+- Efeitos "na próxima vez" (dado duplo, ×2, ×3) ficam **ligados à peça que pegou**. Só **um pendente por jogador**: pegar outro substitui o anterior, mesmo que em outra peça **[padrão]**. Se a peça for comida, congelada ou chegar ao centro antes da vez, o pendente é **perdido** **[padrão]**.
 - **Raridade [padrão]:** escudo 3 · dado duplo 3 · dado personalizável 3 · foguete 3 · fogo 3 · **x2 3 · x3 2** · congelar 2 · bomba 2 · **mega bomba 1**.
 
 ### Os poderes
@@ -98,9 +99,9 @@
 |---|---|
 | 🛡️ **Escudo** | A peça fica protegida até **absorver 1 ataque**. Quando um adversário cai nela: o escudo some e **o atacante volta pra onde estava** (movimento anulado). |
 | ❄️ **Congelar** (azar) | A peça que pisou fica **1 rodada sem poder ser movida**. Apaga o fogo, se tiver. |
-| 🎲🎲 **Dado duplo** | Na **próxima vez** do jogador, rola **2 dados, um seguido do outro**, e move **essa mesma peça** pela **soma**. Se essa peça não puder andar a soma, o poder é **perdido** e o turno segue normal. 6 em qualquer dado dá jogada extra normal. |
+| 🎲🎲 **Dado duplo** | Na **próxima vez** do jogador, rola **2 dados, um seguido do outro**, e move **essa mesma peça** pela **soma**. Se essa peça não puder andar a soma, o poder é **perdido** e o **primeiro dado vale como jogada normal** (qualquer peça) **[padrão]**. 6 em qualquer dado dá jogada extra normal. |
 | 🎯 **Dado personalizável** | Na hora: o jogador **escolhe um número de 1 a 6** e **essa peça** anda imediatamente. Escolher 6 dá jogada extra normal (e conta pros 3 seis). |
-| ✖️2 / ✖️3 **Multiplicador** | Na **próxima vez** do jogador, o valor do dado é **multiplicado por 2 (ou 3)** pro movimento. **[padrão]** Vale pra qualquer peça do jogador. O 6 "cru" continua valendo pra sair da base e pra jogada extra; **sair da base não recebe o multiplicador** (o 6 é consumido na saída). Se nenhuma peça puder usar o valor multiplicado, o multiplicador é **perdido** e joga-se o valor normal. |
+| ✖️2 / ✖️3 **Multiplicador** | Na **próxima vez** do jogador, rola 1 dado e **essa mesma peça** anda o valor **× 2 (ou × 3)**. Um 6 multiplicado é só **12 ou 18 casas**: **não dá jogada extra** e não conta pros três 6. Se a peça não puder andar o valor multiplicado (passaria do centro), o multiplicador é **perdido** e o dado vale como jogada normal (qualquer peça, 6 dá extra) **[padrão]**. |
 | 🚀 **Foguete** | A peça voa **6 a 20 casas (aleatório)** pra frente. Se pousar em adversário em casa não-segura, **come**. Voa por cima (não interage com o caminho). Entra na reta final normalmente; se exceder o centro, para no **máximo possível**. |
 | 💣 **Bomba** (azar) | **Só a peça que pisou** volta pra base. |
 | 💥 **Mega bomba** (azar) | **Todas as peças num raio de 2 casas** (inclusive as suas e do parceiro), mais a que pisou, voltam pra base. **Casa segura NÃO protege.** **Escudo absorve** (some, peça fica). |
@@ -112,7 +113,7 @@
 
 ## 6. Dado 3D
 
-- **Cubo real em WebGL** (Three.js + cannon-es): **branco clássico, pontos pretos, arestas na cor do jogador da vez**, sombra projetada sobre o tabuleiro, leve animação de repouso.
+- **Cubo real em WebGL** (Three.js + cannon-es): **branco clássico, pontos pretos, arestas na cor do jogador da vez** (como no mock), sombra projetada sobre o tabuleiro, leve animação de repouso.
 - **Descansa dentro da base** da cor de quem joga.
 - **Lançamento por arrasto:** toca, arrasta e solta — direção e velocidade do gesto viram impulso + rotação. O dado **rola por cima do tabuleiro inteiro**, bate nas bordas invisíveis, para, mostra a face; depois de ~1 s volta pra base do próximo jogador.
 - **Toque simples** também lança (impulso aleatório).
@@ -172,10 +173,10 @@ Barra inferior fixa com 5 abas: **Jogar · Jogadores · Ranking · Histórico ·
 
 ## 10. Diretrizes visuais e de UX
 
-**Direção:** tabuleiro extremamente colorido e vivo, peças 3D e poderes chamativos, cercado por interface minimalista. Olhando a tela deve-se entender na hora: **quem joga → qual foi o dado → quais peças podem andar → o que aconteceu**.
+**Direção (aprovada em `mocks/fundo.html`):** tabuleiro extremamente colorido e vivo, peças 3D e poderes chamativos, cercado por interface minimalista sobre fundo creme. Olhando a tela deve-se entender na hora: **quem joga → qual foi o dado → quais peças podem andar → o que aconteceu**.
 
 - **Hierarquia no tabuleiro:** 1) peças · 2) peças que podem mover / destino · 3) poderes · 4) decoração. Nada compete com os peões.
-- **Ícones dos poderes:** uma linguagem só — ícones vetoriais próprios, mesmo tamanho, mesmo fundo/borda, sem misturar emoji/flat/3D. Estados: disponível · consumida · recém-ativada.
+- **Ícones dos poderes:** uma linguagem só — ícones vetoriais próprios dentro de uma **placa branca arredondada com borda escura** (como no mock), mesmo tamanho pra todos, sem misturar emoji/flat/3D. Estados: disponível · consumida · recém-ativada.
 - **Estados das peças** (efeitos pequenos, a peça continua visível): selecionável (halo + pulso leve) · escudo (aura) · fogo (chaminha) · congelada (gelo).
 - **Feedback:** peça anda casa a casa (~120 ms/casa) · captura curta com a peça voltando pra base · poder: destaque na peça + ícone por um instante + mensagem curta · vitória: comemoração curta.
 - **Tempos de referência:** peça 100–180 ms/casa · poder 300–700 ms · transições 150–250 ms. Sem animações que bloqueiem o jogador, sem partículas constantes.
