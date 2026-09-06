@@ -79,13 +79,13 @@ for (let r=14;r>=9;r--) ring.push([r,6]);
 for (let c=5;c>=0;c--) ring.push([8,c]);
 ring.push([7,0]);
 ring.push([6,0]);
-const START = { red:0, green:13, yellow:26, blue:39 };
+const START = { green:0, red:13, blue:26, yellow:39 };
 const SAFE = new Set([0,8,13,21,26,34,39,47]);
 const home = {
-  red:    [[7,1],[7,2],[7,3],[7,4],[7,5]],
-  green:  [[1,7],[2,7],[3,7],[4,7],[5,7]],
-  yellow: [[7,13],[7,12],[7,11],[7,10],[7,9]],
-  blue:   [[13,7],[12,7],[11,7],[10,7],[9,7]],
+  green:  [[7,1],[7,2],[7,3],[7,4],[7,5]],
+  red:    [[1,7],[2,7],[3,7],[4,7],[5,7]],
+  blue:   [[7,13],[7,12],[7,11],[7,10],[7,9]],
+  yellow: [[13,7],[12,7],[11,7],[10,7],[9,7]],
 };
 
 const svg = document.getElementById('b');
@@ -119,21 +119,23 @@ ring.forEach(([r,c],i)=>{
 // retas finais
 for (const k in home) home[k].forEach(([r,c])=>el('rect',{x:c,y:r,width:1,height:1,fill:C[k],stroke:'#2b2f3a','stroke-width':.045}));
 // estrelas (casas seguras)
-[8,21,34,47].forEach(i=>{ const [r,c]=ring[i]; star(c+.5,r+.5,.36,'#2b2f3a'); });
+[[8,'green'],[21,'red'],[34,'blue'],[47,'yellow']].forEach(([i,k])=>{ const [r,c]=ring[i]; star(c+.5,r+.5,.36,C[k]); });
+// estrela branca na casa de saída
+for (const k in START){ const [r,c]=ring[START[k]]; star(c+.5,r+.5,.32,'#fff'); }
 // setinhas de entrada da reta final (discretas)
 arrow(0.5,7.5,0,'#fff'); arrow(7.5,0.5,90,'#fff'); arrow(14.5,7.5,180,'#fff'); arrow(7.5,14.5,270,'#fff');
 
 // centro
-el('polygon',{points:'6,6 9,6 7.5,7.5',fill:C.green});
-el('polygon',{points:'9,6 9,9 7.5,7.5',fill:C.yellow});
-el('polygon',{points:'9,9 6,9 7.5,7.5',fill:C.blue});
-el('polygon',{points:'6,9 6,6 7.5,7.5',fill:C.red});
+el('polygon',{points:'6,6 9,6 7.5,7.5',fill:C.red});
+el('polygon',{points:'9,6 9,9 7.5,7.5',fill:C.blue});
+el('polygon',{points:'9,9 6,9 7.5,7.5',fill:C.yellow});
+el('polygon',{points:'6,9 6,6 7.5,7.5',fill:C.green});
 el('rect',{x:6,y:6,width:3,height:3,fill:'none',stroke:'#2b2f3a','stroke-width':.045});
 
 // bases
-const bases = { red:[0,0], green:[0,9], yellow:[9,9], blue:[9,0] };
-const players = { red:{name:'Luiz',av:'🦊'}, green:{name:'Maria',av:'🐼'}, yellow:{name:'João',av:'🦁'}, blue:{name:'Ana',av:'🐸'} };
-const TURN = 'red';
+const bases = { green:[0,0], red:[0,9], blue:[9,9], yellow:[9,0] };
+const players = { green:{name:'Luiz',av:'🦊'}, red:{name:'Maria',av:'🐼'}, blue:{name:'João',av:'🦁'}, yellow:{name:'Ana',av:'🐸'} };
+const TURN = 'green';
 for (const k in bases) {
   const [r,c] = bases[k];
   el('rect',{x:c,y:r,width:6,height:6,fill:C[k]});
@@ -147,30 +149,30 @@ for (const k in bases) {
 }
 
 // ---- casas de poder (6) — mesma linguagem visual ----
-const POW = [ [3,'rocket'], [17,'shield'], [23,'freeze'], [30,'x2'], [36,'bomb'], [45,'fire'] ];
+const POW = [ [3,'rocket'], [10,'spring'], [17,'shield'], [23,'freeze'], [30,'x2'], [36,'bomb'], [42,'x3'], [45,'fire'] ];
 POW.forEach(([i,kind])=>{ const [r,c]=ring[i]; powerTile(c,r,kind); });
 
 // ---- peças ----
 // vermelho: 2 na base, 1 no anel selecionável, 1 com escudo
-pawnAt(bases.red[1]+1.9, bases.red[0]+1.9, 'red');
-pawnAt(bases.red[1]+4.1, bases.red[0]+1.9, 'red');
-pawnRing(5, 'red', {select:true});
-pawnRing(11, 'red', {shield:true});
-// verde
 pawnAt(bases.green[1]+1.9, bases.green[0]+1.9, 'green');
-pawnAt(bases.green[1]+4.1, bases.green[0]+4.1, 'green');
-pawnRing(19, 'green', {fire:true});
-pawnRing(26+7, 'green');
+pawnAt(bases.green[1]+4.1, bases.green[0]+1.9, 'green');
+pawnRing(5, 'green', {select:true});
+pawnRing(11, 'green', {shield:true});
+// verde
+pawnAt(bases.red[1]+1.9, bases.red[0]+1.9, 'red');
+pawnAt(bases.red[1]+4.1, bases.red[0]+4.1, 'red');
+pawnRing(19, 'red', {fire:true});
+pawnRing(26+7, 'red');
 // amarelo
-pawnAt(bases.yellow[1]+1.9, bases.yellow[0]+1.9, 'yellow');
-pawnAt(bases.yellow[1]+4.1, bases.yellow[0]+1.9, 'yellow');
-pawnAt(bases.yellow[1]+1.9, bases.yellow[0]+4.1, 'yellow');
-pawnRing(28, 'yellow', {frozen:true});
-// azul
 pawnAt(bases.blue[1]+1.9, bases.blue[0]+1.9, 'blue');
-pawnAt(bases.blue[1]+4.1, bases.blue[0]+4.1, 'blue');
-pawnRing(41, 'blue');
-pawnHome('blue', 2);
+pawnAt(bases.blue[1]+4.1, bases.blue[0]+1.9, 'blue');
+pawnAt(bases.blue[1]+1.9, bases.blue[0]+4.1, 'blue');
+pawnRing(28, 'blue', {frozen:true});
+// azul
+pawnAt(bases.yellow[1]+1.9, bases.yellow[0]+1.9, 'yellow');
+pawnAt(bases.yellow[1]+4.1, bases.yellow[0]+4.1, 'yellow');
+pawnRing(41, 'yellow');
+pawnHome('yellow', 2);
 
 // ---- dado na base do jogador da vez ----
 dice(bases[TURN][1]+3, bases[TURN][0]+3, 5, C[TURN]);
@@ -202,7 +204,8 @@ function pawnAt(cx,cy,color,o={}){
 }
 function powerTile(c,r,kind){
   const g = el('g',{transform:`translate(${c+.5} ${r+.5})`});
-  el('rect',{x:-.4,y:-.4,width:.8,height:.8,rx:.18,fill:'#fff',stroke:'#2b2f3a','stroke-width':.06,filter:'url(#soft)'},g);
+  const FAM = { rocket:'#ffe0cc', spring:'#ffe0cc', shield:'#d6eeff', freeze:'#d6eeff', bomb:'#ffd6d6', fire:'#ffd6d6', x2:'#e8dcff', x3:'#e8dcff', magic:'#e8dcff' };
+  el('rect',{x:-.4,y:-.4,width:.8,height:.8,rx:.18,fill:FAM[kind]||'#fff',stroke:'#2b2f3a','stroke-width':.06,filter:'url(#soft)'},g);
   const ink = '#2b2f3a';
   switch(kind){
     case 'rocket': el('path',{d:'M0,-.3 C.14,-.16 .14,.06 .08,.14 L-.08,.14 C-.14,.06 -.14,-.16 0,-.3 Z M-.08,.06 L-.2,.18 M.08,.06 L.2,.18 M0,.14 L0,.28',fill:'#ff7043',stroke:ink,'stroke-width':.04,'stroke-linejoin':'round'},g); break;
@@ -211,6 +214,8 @@ function powerTile(c,r,kind){
     case 'bomb': el('circle',{cx:-.02,cy:.06,r:.2,fill:'#2b2f3a'},g); el('path',{d:'M.1,-.1 C.16,-.22 .22,-.24 .28,-.3',stroke:'#ff7043','stroke-width':.05,fill:'none','stroke-linecap':'round'},g); el('circle',{cx:.29,cy:-.31,r:.05,fill:'#ffc400'},g); break;
     case 'fire': el('path',{d:'M-.1,.28 C-.3,.1 -.2,-.12 -.02,-.3 C.04,-.14 .16,-.1 .14,.02 C.26,-.06 .3,.12 .14,.28 Z',fill:'url(#fire)',stroke:ink,'stroke-width':.04,'stroke-linejoin':'round'},g); break;
     case 'x2': { const t=el('text',{x:0,y:.16,'text-anchor':'middle','font-size':.42,'font-weight':'900',fill:'#7e57c2'},g); t.textContent='×2'; break; }
+    case 'x3': { const t=el('text',{x:0,y:.16,'text-anchor':'middle','font-size':.42,'font-weight':'900',fill:'#7e57c2'},g); t.textContent='×3'; break; }
+    case 'spring': el('path',{d:'M-.22,.28 H.22 M-.16,.28 C-.2,.1 .2,.1 .16,-.04 C.2,-.18 -.2,-.18 -.16,-.3',stroke:'#ff7043','stroke-width':.07,fill:'none','stroke-linecap':'round'},g); break;
   }
 }
 function dice(cx,cy,face,edge){
