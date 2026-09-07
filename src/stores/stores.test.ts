@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { players, cleanName } from './players.svelte';
 import { history } from './history.svelte';
-import { settings, applySettings, DEFAULT_SETTINGS } from './settings.svelte';
+import { settings, applySettings, haptic, DEFAULT_SETTINGS, type Settings, type Haptic } from './settings.svelte';
 import { loadSetup, saveSetup, clearSetup } from './setup.svelte';
 import { createGame, DEFAULT_RULES, endGame, move, roll } from '../engine/game';
 import { FINISH, type Color, type GameState } from '../engine/types';
@@ -199,17 +199,68 @@ describe('ajustes', () => {
     applySettings({}, true);
     expect(settings).toEqual(DEFAULT_SETTINGS);
   });
+
+  it('vibração: aceita os três níveis, converte o boolean antigo e rejeita lixo', () => {
+    applySettings({ haptics: 'normal' });
+    expect(settings.haptics).toBe('normal');
+    applySettings({ haptics: true as unknown as Settings['haptics'] }); // backup antigo
+    expect(settings.haptics).toBe('soft');
+    applySettings({ haptics: false as unknown as Settings['haptics'] });
+    expect(settings.haptics).toBe('off');
+    applySettings({ haptics: 'forte' as unknown as Settings['haptics'] });
+    expect(settings.haptics).toBe('off'); // ignorado: mantém o anterior
+    applySettings({}, true);
+  });
+
+  it('vibração: cada nível manda padrões curtos (nenhum pulso acima de 40 ms)', () => {
+    const calls: (number | number[])[] = [];
+    const orig = navigator.vibrate;
+    Object.defineProperty(navigator, 'vibrate', { value: (p: number | number[]) => (calls.push(p), true), configurable: true });
+    try {
+      const names: Haptic[] = ['tap', 'diceLand', 'six', 'step', 'capture', 'finish', 'victory', 'fly', 'landing', 'boom'];
+      for (const level of ['soft', 'normal'] as const) {
+        applySettings({ haptics: level });
+        calls.length = 0;
+        for (const n of names) haptic(n);
+        expect(calls.length).toBeGreaterThan(0);
+        for (const p of calls) {
+          const arr = Array.isArray(p) ? p : [p];
+          // posições pares = motor ligado
+          const on = arr.filter((_, i) => i % 2 === 0);
+          const max = level === 'soft' ? 25 : 40;
+          if (on.some((ms) => ms > max)) throw new Error(`${level}: pulso de ${Math.max(...on)} ms passa de ${max}`);
+        }
+      }
+      applySettings({ haptics: 'off' });
+      calls.length = 0;
+      haptic('victory');
+      expect(calls).toEqual([]);
+    } finally {
+      Object.defineProperty(navigator, 'vibrate', { value: orig, configurable: true });
+      applySettings({}, true);
+    }
+  });
+
+  it('tema: aceita creme/aurora e ignora valor desconhecido', () => {
+    applySettings({ theme: 'aurora' });
+    expect(settings.theme).toBe('aurora');
+    applySettings({ theme: 'neon' as unknown as Settings['theme'] });
+    expect(settings.theme).toBe('aurora');
+    applySettings({}, true);
+    expect(settings.theme).toBe('cream');
+  });
 });
 
 describe('última configuração de partida', () => {
   it('salva e recarrega, com padrão seguro', () => {
     expect(loadSetup().mode).toBe('classic');
-    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, captureBonus: true, disabledPowers: ['mine'] });
+    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, captureBonus: true, disabledPowers: ['mine'], visibleMines: true });
     const s = loadSetup();
     expect(s.mode).toBe('quick');
     expect(s.slots.green).toBe('a');
     expect(s.captureBonus).toBe(true);
     expect(s.disabledPowers).toEqual(['mine']);
+    expect(s.visibleMines).toBe(true);
     clearSetup();
     expect(loadSetup().slots.green).toBeNull();
   });

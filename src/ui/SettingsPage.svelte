@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { settings, saveSettings, applySettings } from '../stores/settings.svelte';
+  import { settings, saveSettings, applySettings, haptic, type HapticsLevel, type Theme } from '../stores/settings.svelte';
   import { players } from '../stores/players.svelte';
   import { history } from '../stores/history.svelte';
   import { match } from '../stores/match.svelte';
@@ -27,8 +27,30 @@
     void settings.haptics;
     void settings.autoMove;
     void settings.diceMode;
+    void settings.theme;
     saveSettings();
   });
+
+  const HAPTICS: { id: HapticsLevel; name: string; hint: string }[] = [
+    { id: 'off', name: 'Desligada', hint: 'Nenhuma vibração' },
+    { id: 'soft', name: 'Suave', hint: 'Toques curtíssimos, tipo clique. Pensado pro celular apoiado na mesa: não zumbe nem chacoalha.' },
+    { id: 'normal', name: 'Normal', hint: 'Pulsos um pouco mais longos e vibra também a cada casa andada. Melhor com o celular na mão.' },
+  ];
+  const THEMES: { id: Theme; name: string; hint: string }[] = [
+    { id: 'cream', name: 'Creme', hint: 'Fundo liso e discreto. Gasta menos bateria.' },
+    { id: 'aurora', name: 'Aurora', hint: 'Manchas de cor vibrantes e desfocadas, em movimento lento atrás do jogo.' },
+  ];
+
+  function setHaptics(level: HapticsLevel) {
+    sound.play('tap');
+    settings.haptics = level;
+    // amostra do nível escolhido
+    setTimeout(() => haptic('capture'), 60);
+  }
+  function setTheme(t: Theme) {
+    sound.play('tap');
+    settings.theme = t;
+  }
 
   async function exportBackup() {
     sound.play('tap');
@@ -84,8 +106,46 @@
     <h2>Jogo</h2>
     <div class="card group">
       <Toggle label="Sons" hint="Dado, peças, capturas, vitória" bind:checked={settings.sound} />
-      <Toggle label="Vibração" hint="Só em eventos importantes" bind:checked={settings.haptics} />
       <Toggle label="Mover sozinho" hint="Quando só existe uma jogada possível, a peça anda sem precisar tocar" bind:checked={settings.autoMove} />
+    </div>
+  </section>
+
+  <section>
+    <h2>Vibração</h2>
+    <div class="card group">
+      <div class="radio">
+        {#each HAPTICS as h (h.id)}
+          <button class="opt" class:on={settings.haptics === h.id} onclick={() => setHaptics(h.id)}>
+            <span class="mark"></span>
+            <span class="txt">
+              <span class="tl">{h.name}</span>
+              <span class="muted small">{h.hint}</span>
+            </span>
+          </button>
+        {/each}
+      </div>
+      <p class="muted small note">
+        No Android a vibração do navegador segue o perfil de som do aparelho: no modo silencioso ou "Não perturbe" ela não toca.
+        Se não sentir nada, confira em Configurações → Sons e vibração → Intensidade da vibração → Interação por toque.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Aparência</h2>
+    <div class="card group">
+      <div class="radio">
+        {#each THEMES as t (t.id)}
+          <button class="opt" class:on={settings.theme === t.id} onclick={() => setTheme(t.id)}>
+            <span class="mark"></span>
+            <span class="txt">
+              <span class="tl">{t.name}</span>
+              <span class="muted small">{t.hint}</span>
+            </span>
+            <span class="swatch {t.id}"></span>
+          </button>
+        {/each}
+      </div>
     </div>
   </section>
 
@@ -255,5 +315,27 @@
     text-align: center;
     font-size: 12px;
     margin: 8px 0 0;
+  }
+  .note {
+    margin: 0;
+    padding: 4px 16px 12px;
+  }
+  .swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    flex: none;
+    border: 2px solid rgba(0, 0, 0, 0.08);
+  }
+  .swatch.cream {
+    background: #f6f1e7;
+  }
+  .swatch.aurora {
+    background:
+      radial-gradient(circle at 30% 30%, #ff6b9d 0, transparent 55%),
+      radial-gradient(circle at 75% 25%, #ffd166 0, transparent 50%),
+      radial-gradient(circle at 70% 75%, #4cc9f0 0, transparent 55%),
+      radial-gradient(circle at 25% 75%, #7bed9f 0, transparent 50%),
+      #f6f1e7;
   }
 </style>
