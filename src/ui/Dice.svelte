@@ -4,7 +4,10 @@
 
   interface Props {
     color: Color;
-    /** Valor mostrado quando parado (null = ainda não rolou neste turno). */
+    /**
+     * Face a mostrar: enquanto gira, é o valor já sorteado pelo motor
+     * (`rollingValue`); parado, a última face (`diceFace`).
+     */
     value: number | null;
     /** Pode ser lançado agora? */
     enabled: boolean;
@@ -27,24 +30,29 @@
     6: [0, 180],
   };
 
-  let spinning = $state(false);
   let extraX = $state(0);
   let extraY = $state(0);
 
   const shown = $derived(value ?? 1);
+  // O cubo gira até a face `shown`; as voltas extras são adicionadas quando começa a rolar,
+  // então a transição CSS de 720 ms termina exatamente na face sorteada.
   const rot = $derived.by(() => {
     const [rx, ry] = FACE_ROT[shown];
     return { x: rx + extraX, y: ry + extraY };
   });
 
+  let wasRolling = false;
+  $effect(() => {
+    if (rolling && !wasRolling) {
+      extraX += 360 * (2 + Math.floor(Math.random() * 2));
+      extraY += 360 * (2 + Math.floor(Math.random() * 2));
+    }
+    wasRolling = rolling;
+  });
+
   function tap() {
-    if (!enabled || spinning) return;
-    spinning = true;
-    // voltas inteiras extras; a face final é determinada pelo `value` que o motor devolve
-    extraX += 360 * (2 + Math.floor(Math.random() * 2));
-    extraY += 360 * (2 + Math.floor(Math.random() * 2));
+    if (!enabled || rolling) return;
     onRoll();
-    setTimeout(() => (spinning = false), 700);
   }
 
   const PIPS: Record<number, [number, number][]> = {
@@ -69,12 +77,13 @@
 <button
   class="dice"
   class:enabled
-  class:spinning={spinning || rolling}
+  class:spinning={rolling}
   style="--s:{size}px; --edge:{COLOR_HEX[color]}"
   onclick={tap}
   disabled={!enabled}
   aria-label={enabled ? 'Rolar o dado' : value ? `Dado: ${value}` : 'Dado'}
 >
+  <div class="jump" class:go={rolling}>
   <div class="cube" style="transform: rotateX({rot.x}deg) rotateY({rot.y}deg)">
     {#each FACES as f}
       <div class="face" style="transform: {f.t} translateZ(calc(var(--s) / 2))">
@@ -86,7 +95,8 @@
       </div>
     {/each}
   </div>
-  <div class="shadow"></div>
+  </div>
+  <div class="shadow" class:go={rolling}></div>
 </button>
 
 <style>
@@ -112,15 +122,58 @@
     animation: halo 1.2s ease-in-out infinite;
     pointer-events: none;
   }
+  .jump {
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+  }
+  .jump.go {
+    animation: dice-jump 0.72s cubic-bezier(0.3, 0.6, 0.4, 1);
+  }
   .cube {
     position: relative;
     width: 100%;
     height: 100%;
     transform-style: preserve-3d;
-    transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: transform 0.72s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .spinning .cube {
-    transition-duration: 0.7s;
+  @keyframes dice-jump {
+    0% {
+      transform: translateY(0);
+    }
+    35% {
+      transform: translateY(-55%);
+    }
+    70% {
+      transform: translateY(0);
+    }
+    82% {
+      transform: translateY(-10%);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
+  @keyframes dice-shadow {
+    0% {
+      transform: translateZ(-1px) scale(1);
+      opacity: 1;
+    }
+    35% {
+      transform: translateZ(-1px) scale(0.55);
+      opacity: 0.45;
+    }
+    70% {
+      transform: translateZ(-1px) scale(1.05);
+      opacity: 1;
+    }
+    100% {
+      transform: translateZ(-1px) scale(1);
+      opacity: 1;
+    }
+  }
+  .shadow.go {
+    animation: dice-shadow 0.72s cubic-bezier(0.3, 0.6, 0.4, 1);
   }
   .face {
     position: absolute;

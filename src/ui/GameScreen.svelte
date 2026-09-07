@@ -1,5 +1,6 @@
 <script lang="ts">
   import { match } from '../stores/match.svelte';
+  import { sound } from '../lib/sound';
   import { COLOR_HEX, COLOR_ON } from '../lib/colors';
   import { BASE_ORIGIN } from '../engine/board';
   import { currentPlayer } from '../engine/game';
@@ -18,21 +19,11 @@
   const game = $derived(match.state!);
   const turn = $derived(game.turn.color);
   const me = $derived(currentPlayer(game));
-  const canRoll = $derived(game.turn.phase === 'roll' && !match.rolling);
+  const canRoll = $derived(game.turn.phase === 'roll' && !match.busy);
   const legal = $derived(game.turn.phase === 'move' ? game.turn.legal : []);
 
-  /** Valor mostrado no dado: o último rolado neste turno (do log). */
-  const diceValue = $derived.by(() => {
-    if (match.rolling) return null;
-    if (game.turn.phase === 'move') return game.turn.dice;
-    // último roll do jogador da vez neste turno
-    for (let i = game.log.length - 1; i >= 0; i--) {
-      const e = game.log[i];
-      if (e.type === 'turn') break;
-      if (e.type === 'roll' && e.color === turn) return e.value;
-    }
-    return null;
-  });
+  /** Face do dado: enquanto gira, o valor já sorteado; parado, a última face. */
+  const diceValue = $derived(match.rollingValue ?? match.diceFace);
 
   /** Posição do dado dentro da base da cor da vez, em células. */
   const dicePos = $derived.by(() => {
@@ -47,11 +38,11 @@
       <span class="dot"></span>
       <span class="name">{me?.avatar} {me?.name}</span>
     </div>
-    <button class="menu-btn" aria-label="Menu" onclick={() => (menuOpen = true)}>⋮</button>
+    <button class="menu-btn" aria-label="Menu" onclick={() => { sound.play('tap'); menuOpen = true; }}>⋮</button>
   </header>
 
   <div class="board-wrap">
-    <Board state={game} {legal} onPiece={(i) => match.move(i)}>
+    <Board state={game} {legal} moving={match.moving} goingHome={match.goingHome} busy={match.busy} onPiece={(i) => { sound.play('tap'); match.move(i); }}>
       {#snippet overlay(cell)}
         {#if game.turn.phase !== 'over'}
           <div
@@ -137,6 +128,8 @@
     transform: translate(-50%, -50%);
     width: var(--size);
     height: var(--size);
+    /* desliza até a base do próximo jogador */
+    transition: left 0.45s cubic-bezier(0.3, 0.8, 0.3, 1), top 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
   }
   .status {
     flex: 1;

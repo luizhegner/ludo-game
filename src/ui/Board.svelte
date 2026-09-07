@@ -15,17 +15,24 @@
   import { COLOR_HEX, COLOR_DARK, COLOR_LIGHT, COLOR_ON } from '../lib/colors';
   import { destination, playerOf, progress } from '../engine/game';
   import Pawn from './Pawn.svelte';
+  import type { Moving } from '../stores/match.svelte';
 
   interface Props {
     state: GameState;
     /** Índices das peças da cor da vez que podem mover. */
     legal?: number[];
+    /** Peça andando casa a casa (desenhada em `moving.pos`, por cima das outras). */
+    moving?: Moving | null;
+    /** Peças voando de volta pra base (chaves `cor-índice`). */
+    goingHome?: string[];
+    /** UI travada (animação em andamento): nada é selecionável. */
+    busy?: boolean;
     onPiece?: (piece: number) => void;
     /** Conteúdo extra por cima do tabuleiro (ex.: dado). Recebe o tamanho de uma célula em px. */
     overlay?: Snippet<[number]>;
   }
 
-  let { state: game, legal = [], onPiece, overlay }: Props = $props();
+  let { state: game, legal = [], moving = null, goingHome = [], busy = false, onPiece, overlay }: Props = $props();
 
   let el: HTMLDivElement | undefined = $state();
   let size = $state(360);
@@ -45,6 +52,7 @@
 
   /** Casa de destino da(s) peça(s) legais, pra destacar. */
   const targets = $derived.by(() => {
+    if (moving || busy) return [] as { x: number; y: number }[];
     if (game.turn.phase !== 'move' || game.turn.dice === null) return [] as { x: number; y: number }[];
     const d = game.turn.dice;
     const seen = new Set<string>();
@@ -66,11 +74,12 @@
    * espalhadas levemente e encolhidas pra continuarem visíveis.
    */
   const pawns = $derived.by(() => {
-    type P = { color: Color; index: number; x: number; y: number; scale: number; key: string };
+    type P = { color: Color; index: number; x: number; y: number; scale: number; key: string; moving?: boolean };
     const groups = new Map<string, P[]>();
     for (const color of COLORS) {
       if (!present.has(color)) continue;
       game.pieces[color].forEach((pos, index) => {
+        if (moving && moving.color === color && moving.piece === index) return; // desenhada à parte
         const c = cellOf(color, pos, index);
         const k = pos === -1 ? `${color}-base-${index}` : `${c.x},${c.y}`;
         const p: P = { color, index, x: c.x, y: c.y, scale: 1, key: `${color}-${index}` };
@@ -95,6 +104,11 @@
     }
     // peça da vez por cima
     out.sort((a, b) => (a.color === turn ? 1 : 0) - (b.color === turn ? 1 : 0) || a.y - b.y);
+    // peça em movimento sempre por último (acima de todas), na casa atual da animação
+    if (moving) {
+      const c = cellOf(moving.color, moving.pos, moving.piece);
+      out.push({ color: moving.color, index: moving.piece, x: c.x, y: c.y, scale: 1, key: `${moving.color}-${moving.piece}`, moving: true });
+    }
     return out;
   });
 
@@ -247,8 +261,10 @@
         x={p.x}
         y={p.y}
         scale={p.scale}
-        selectable={p.color === turn && legal.includes(p.index)}
-        dim={game.turn.phase === 'move' && p.color === turn && !legal.includes(p.index) && isRing(game.pieces[p.color][p.index])}
+        selectable={!busy && !moving && p.color === turn && legal.includes(p.index)}
+        dim={!moving && game.turn.phase === 'move' && p.color === turn && !legal.includes(p.index) && isRing(game.pieces[p.color][p.index])}
+        moving={!!p.moving}
+        home={goingHome.includes(p.key)}
         onclick={() => onPiece?.(p.index)}
       />
     {/each}
