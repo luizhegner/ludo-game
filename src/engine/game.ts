@@ -110,6 +110,7 @@ export function createGame(cfg: NewGameConfig): GameState {
   };
   if (hasPowers(state.rules)) {
     state.rules.disabledPowers = [...(cfg.rules.disabledPowers ?? [])];
+    state.rules.visibleMines = !!cfg.rules.visibleMines;
     state.powers = { cells: [], effects: {}, pending: {} };
     placePowers(state);
   }
@@ -287,6 +288,7 @@ export function move(state: GameState, piece: number, now = Date.now()): GameSta
 
   let extra = mult ? false : dice === 6;
   if (out.captured > 0 && s.rules.captureBonus) extra = true;
+  if (out.finished) extra = true; // chegar ao centro dá jogada extra
   return endOfMove(s, color, out, extra, now);
 }
 
@@ -319,6 +321,7 @@ export function pick(state: GameState, value: number, now = Date.now()): GameSta
   const out = walk(s, color, piece, from + value, 'dice', now);
   if (value === 6) extra = true;
   if (out.captured > 0 && s.rules.captureBonus) extra = true;
+  if (out.finished) extra = true;
   return endOfMove(s, color, out, extra, now);
 }
 
@@ -482,6 +485,8 @@ interface Outcome {
   captured: number;
   /** Parou numa casa de dado personalizável: espera a escolha. */
   picking: boolean;
+  /** Uma peça chegou ao centro neste movimento (dá jogada extra). */
+  finished: boolean;
 }
 
 type MoveKind = 'dice' | 'fly';
@@ -491,7 +496,7 @@ type MoveKind = 'dice' | 'fly';
  * caminho (revela minas, fogo queima); voo de foguete/mola não.
  */
 function walk(s: GameState, color: Color, piece: number, to: number, kind: MoveKind, now: number): Outcome {
-  const out: Outcome = { captured: 0, picking: false };
+  const out: Outcome = { captured: 0, picking: false, finished: false };
   const from = s.pieces[color][piece];
   const burning = kind === 'dice' && isBurning(s, color, piece);
 
@@ -602,7 +607,10 @@ function land(
     effectsOf(s, color, piece).fire = 0;
     log(s, { t: now, type: 'fireOut', color, piece, reason: 'stretch' });
   }
-  if (to === FINISH) arrive(s, color, piece, now);
+  if (to === FINISH) {
+    arrive(s, color, piece, now);
+    out.finished = true;
+  }
 }
 
 /** Peça chegou ao centro. */
@@ -666,6 +674,7 @@ function applyPower(
       const sub = walk(s, color, piece, to, 'fly', now);
       out.captured += sub.captured;
       out.picking = out.picking || sub.picking;
+      out.finished = out.finished || sub.finished;
       return;
     }
     case 'magicDice':

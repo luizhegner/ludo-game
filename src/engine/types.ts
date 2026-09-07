@@ -47,6 +47,8 @@ export interface Rules {
   captureBonus: boolean;
   /** Poderes desligados nesta partida (só nos modos com poderes). Ausente = todos ligados. */
   disabledPowers?: Power[];
+  /** Minas aparecem desde que são colocadas (em vez de escondidas até alguém passar por cima). */
+  visibleMines?: boolean;
 }
 
 /** Casa de poder no anel (índice absoluto). */
