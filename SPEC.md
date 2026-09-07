@@ -54,7 +54,7 @@
 | Comer | Cair em casa não-segura com peça adversária manda ela pra base. **[padrão]** Se houver mais de uma adversária empilhada ali, todas voltam |
 | Bônus de captura | **Padrão: nenhum**. Opção por partida: "jogada extra ao comer" |
 | Chegar no centro | **Número exato**. Se passar, a peça não pode ser movida (move outra ou perde a vez) |
-| Bônus ao chegar no centro | **[padrão]** Nenhum |
+| Bônus ao chegar no centro | **Jogada extra**: quem coloca uma peça no centro rola de novo (vale pra dado, foguete, mola e dado personalizável). Não conta pros três 6. Quem colocou a 4ª peça só sai da rodada. As peças terminadas ficam **dentro do triângulo da cor**, perto do centro (4 vaguinhas por cor) |
 | Sem jogada possível | Mostra "sem jogadas" por ~1 s e **passa sozinho** |
 | Só uma jogada possível | **Auto-move configurável** (Ajustes). Padrão **[padrão]**: ligado |
 | Ordem de turnos | Sentido horário pelas cores; **quem começa é sorteado** |
@@ -100,6 +100,7 @@
 
 ### Casas de poder
 - **10 casas** de poder no anel (**8 visíveis + 2 minas escondidas**), em **posições aleatórias** a cada partida. **[padrão]** Nunca em casa segura/saída, nunca na reta final, nunca em casa ocupada no momento do sorteio.
+- Opção por partida **"Minas visíveis"** (Nova partida → passo 3, lembrada pra próxima): as minas aparecem com o ícone 💀 desde o sorteio e nas reposições. Padrão: escondidas.
 - **Visíveis:** cada casa mostra o **ícone do poder** (dá pra desviar de propósito). **Segurar o dedo** na casa mostra o que o poder faz **na área de status abaixo do tabuleiro** (não embaixo do dedo). ⋮ → Regras lista todos os poderes ativos.
 - Casa de poder **não é segura**.
 - Ao pisar, o poder é **consumido imediatamente** e a casa fica vazia. Minas explodidas também contam como consumidas. Quando sobrarem **4** (visíveis + escondidas), repovoa pra **10** em lugares novos (com 2 minas novas escondidas).
@@ -121,7 +122,7 @@
 | 🚀 **Foguete** | A peça voa **6 a 20 casas (aleatório)** pra frente. Se pousar em adversário em casa não-segura, **come**. Voa por cima (não interage com o caminho). Entra na reta final normalmente; se exceder o centro, para no **máximo possível**. |
 | 💣 **Bomba** (azar) | **Só a peça que pisou** volta pra base. |
 | 💥 **Mega bomba** (azar) | **Todas as peças num raio de 2 casas** (inclusive as suas e do parceiro), mais a que pisou, voltam pra base. **Casa segura NÃO protege.** **Escudo absorve** (some, peça fica). |
-| 💀 **Mina** (azar, escondida) | Parece casa normal. Quem **parar** nela volta pra base e a mina some. Quem **passar por cima** sem parar **revela** a mina pra todos (fica visível até alguém pisar). **Escudo absorve** (some, peça fica). Peça com **fogo** que passa por cima **detona** a mina (some sem vítima). Sempre 2 no tabuleiro, ligadas por padrão. |
+| 💀 **Mina** (azar, escondida) | Parece casa normal. Quem **parar** nela volta pra base e a mina some. Quem **passar por cima** sem parar **revela** a mina pra todos (fica visível até alguém pisar). **Escudo absorve** (some, peça fica). Peça com **fogo** que passa por cima **detona** a mina (some sem vítima). Sempre 2 no tabuleiro, ligadas por padrão. Com a opção **"Minas visíveis"** ligada, já nascem reveladas. |
 | 🔥 **Fogo** | A peça fica em chamas por **1 rodada** do jogador (o próximo movimento dela). Enquanto anda, **toda peça adversária que ela passar por cima ou parar em cima volta pra base**, exceto: peças em **casa segura** (ilesas), peças com **escudo** (o escudo é destruído, a peça fica) e, no 2v2, o **parceiro**. **Parar em cima de escudo** segue a regra do escudo: escudo quebra e **a peça com fogo volta pra onde estava** (quem ela queimou no caminho continua queimado). Apaga antes se: cair em ❄️ congelar, entrar na reta final, ou ser comida. **[padrão]** Só age em movimento de dado (não durante voo de foguete). |
 
 **[padrão]** Peça com fogo pode ser comida normalmente. Peça congelada pode ser comida normalmente.
@@ -184,10 +185,12 @@ Barra inferior fixa com 5 abas: **Jogar · Jogadores · Ranking · Histórico ·
 | **Jogadores** | Lista com avatar, nome, Elo do modo mais jogado; + criar; toque abre detalhes; editar/excluir |
 | **Ranking** | Seletor de modo, filtro de período, tabela |
 | **Histórico** | Lista (data, modo, vencedor, participantes). Ao abrir: resumo + estatísticas por jogador + **linha do tempo com horário** ("19:44 João comeu Maria", "19:45 Ana pegou 🚀 e voou 14 casas") |
-| **Ajustes** | Sons, vibração, auto-move, modo do dado (física real / sorteio), Exportar backup, Importar backup, apagar tudo, versão |
+| **Ajustes** | Sons, vibração (Desligada / Suave / Normal), auto-move, modo do dado (física real / sorteio), aparência (Creme / Aurora), Exportar backup, Importar backup, apagar tudo, versão |
 
 - **Retomar partida:** salva a cada jogada; fechou o app, volta de onde parou. Sem "desfazer".
-- Sons sintetizados via WebAudio (dado rolando/parando, peça, captura, poder, vitória). Vibração só em eventos importantes. Ambos com toggle.
+- Sons sintetizados via WebAudio (dado rolando/parando, peça, captura, poder, vitória), com toggle.
+- **Vibração** em três níveis: **Desligada · Suave [padrão] · Normal**. O celular costuma estar **apoiado na mesa**, então nada de zumbido longo: só pulsos curtos tipo "clique" (Suave ≤ 25 ms, Normal ≤ 40 ms por pulso; o "peso" de um evento vem de repetir pulsos, nunca de alongar). A Vibration API não controla força, só duração — por isso a diferença entre os níveis é o tamanho dos pulsos e quais eventos vibram (Normal também vibra a cada casa andada). No Android a vibração do navegador segue o perfil de som (silencioso/Não perturbe = sem vibração) e precisa de "Interação por toque" ligada; o Ajustes explica isso. iPhone não suporta.
+- **Aparência**: fundo **Creme** (liso, padrão) ou **Aurora** (manchas de cor vibrantes e desfocadas, em movimento lento atrás do jogo, estilo Apple Music; respeita "reduzir movimento" do sistema).
 
 ---
 
@@ -261,7 +264,7 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
   A partida entra no histórico **no instante em que acaba** (mesmo que o app feche durante a animação).
 - **Ranking (provisório, por vitórias):** seletor de modo + período (semana/mês/ano/tudo). Vira Elo na fase 6 —
   o histórico completo já está guardado, então o Elo será recalculado retroativamente.
-- **Ajustes:** sons, vibração, mover sozinho, modo do dado (sorteio × física real), **exportar/importar backup JSON**
+- **Ajustes:** sons, vibração (3 níveis), mover sozinho, modo do dado (sorteio × física real), aparência (Creme × Aurora), **exportar/importar backup JSON**
   (jogadores + histórico + ajustes), apagar tudo, versão.
 - **Dentro da partida:** menu ⋮ → Jogadores agora usa o cadastro pra adicionar/substituir; fotos aparecem na base.
 - **[padrão]** Fotos não vão pro histórico (viram 🙂 no arquivo); a UI resolve o avatar atual pelo id do jogador.
@@ -277,8 +280,9 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
 - **Estado**: `GameState.powers = { cells, effects, pending }` ao lado de `pieces` (partidas antigas continuam abrindo).
   Nova fase de turno `'pick'` (dado personalizável) e eventos próprios no log (`power`, `fly`, `boom`, `shieldBlock`, …).
 - **Interface**: ícone na casa com fundo por família; **segurar o dedo** mostra a explicação na área de status; peças mostram
-  escudo (anel azul), fogo (chama), gelo (bloco ❄️) e multiplicador pendente (×2/×3); foguete/mola voam num arco só; seletor
-  1–6 no centro do tabuleiro pro dado personalizável; toasts e 8 sons novos (ver `SONS.md`); ⋮ → Regras lista os poderes e marca os
+  escudo (anel azul), fogo (chama), gelo (bloco ❄️) e multiplicador pendente (×2/×3); **foguete** decola em três atos (tremor
+  com chama, voo inclinado, pouso caótico com quiques) e a **mola** agacha e salta num arco; seletor
+  1–6 no centro do tabuleiro pro dado personalizável; toasts e 10 sons novos (ver `SONS.md`); ⋮ → Regras lista os poderes e marca os
   desligados; Nova partida → passo 3 liga/desliga cada poder (lembrado pra próxima); histórico mostra os eventos na linha do tempo
   e a coluna ✨ (poderes pegos).
 - **[padrão]** Quando um poder leva a peça pra casa de outro poder, a peça pausa um instante na primeira casa antes de continuar,
