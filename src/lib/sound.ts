@@ -22,7 +22,16 @@ export type SoundName =
   | 'playerDone'
   | 'victory'
   | 'turn'
-  | 'tap';
+  | 'tap'
+  // --- modo Poderes ---
+  | 'power'
+  | 'fly'
+  | 'shield'
+  | 'boom'
+  | 'mine'
+  | 'magicDice'
+  | 'multiplier'
+  | 'repopulate';
 
 /** Nome do arquivo (sem extensão) em public/sounds/ pra cada som. */
 export const SOUND_FILES: Record<SoundName, string> = {
@@ -39,6 +48,14 @@ export const SOUND_FILES: Record<SoundName, string> = {
   victory: 'victory',
   turn: 'turn',
   tap: 'tap',
+  power: 'power',
+  fly: 'fly',
+  shield: 'shield',
+  boom: 'boom',
+  mine: 'mine',
+  magicDice: 'magic-dice',
+  multiplier: 'multiplier',
+  repopulate: 'repopulate',
 };
 
 const EXTENSIONS = ['mp3', 'ogg'] as const;
@@ -113,7 +130,7 @@ function noise(
 }
 
 // ---------------------------------------------------------------------------
-// Os 13 sons sintetizados
+// Os 21 sons sintetizados
 // ---------------------------------------------------------------------------
 
 const SYNTH: Record<SoundName, Synth> = {
@@ -203,6 +220,53 @@ const SYNTH: Record<SoundName, Synth> = {
   tap: (ctx, out, t0) => {
     noise(ctx, out, t0, { dur: 0.025, gain: 0.12, freq: 3000, q: 1.2 });
     tone(ctx, out, t0, { freq: 1200, to: 900, dur: 0.04, type: 'sine', gain: 0.1 });
+  },
+
+  // --- modo Poderes ---
+
+  // pegou um poder: "brilho" de duas notas com cauda
+  power: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 880, dur: 0.12, type: 'triangle', gain: 0.18 });
+    tone(ctx, out, t0, { freq: 1319, dur: 0.3, type: 'sine', gain: 0.18, delay: 0.09 });
+    noise(ctx, out, t0, { dur: 0.12, gain: 0.05, freq: 5000, q: 1, delay: 0.09 });
+  },
+  // foguete/mola: "whoosh" subindo com sopro
+  fly: (ctx, out, t0) => {
+    noise(ctx, out, t0, { dur: 0.55, gain: 0.25, freq: 900, q: 0.6, type: 'bandpass' });
+    tone(ctx, out, t0, { freq: 200, to: 1400, dur: 0.5, type: 'sawtooth', gain: 0.08 });
+    tone(ctx, out, t0, { freq: 1400, to: 900, dur: 0.15, type: 'sine', gain: 0.12, delay: 0.5 });
+  },
+  // escudo absorvendo: "clang" metálico curto
+  shield: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 1500, to: 1100, dur: 0.22, type: 'square', gain: 0.08 });
+    tone(ctx, out, t0, { freq: 2250, to: 1800, dur: 0.3, type: 'triangle', gain: 0.12 });
+    noise(ctx, out, t0, { dur: 0.06, gain: 0.2, freq: 3500, q: 2 });
+  },
+  // bomba / mega bomba / mina: estouro grave com cauda de ruído
+  boom: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 140, to: 40, dur: 0.5, type: 'sine', gain: 0.5 });
+    noise(ctx, out, t0, { dur: 0.45, gain: 0.35, freq: 500, q: 0.5, type: 'lowpass' });
+    noise(ctx, out, t0, { dur: 0.12, gain: 0.25, freq: 2500, q: 0.8, delay: 0.01 });
+  },
+  // mina revelada: "tic-tic" de relógio + zumbido de alerta
+  mine: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 1800, dur: 0.04, type: 'square', gain: 0.08 });
+    tone(ctx, out, t0, { freq: 1800, dur: 0.04, type: 'square', gain: 0.08, delay: 0.12 });
+    tone(ctx, out, t0, { freq: 300, to: 260, dur: 0.3, type: 'sawtooth', gain: 0.08, delay: 0.2 });
+  },
+  // dado personalizável: pergunta em duas notas pra cima
+  magicDice: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 659, dur: 0.12, type: 'triangle', gain: 0.18 });
+    tone(ctx, out, t0, { freq: 988, dur: 0.22, type: 'triangle', gain: 0.18, delay: 0.13 });
+  },
+  // multiplicador em ação: dois "pings" rápidos subindo
+  multiplier: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 1047, dur: 0.1, type: 'sine', gain: 0.2 });
+    tone(ctx, out, t0, { freq: 1568, dur: 0.16, type: 'sine', gain: 0.2, delay: 0.1 });
+  },
+  // novas casas de poder: arpejo suave de "surgimento"
+  repopulate: (ctx, out, t0) => {
+    [784, 988, 1175, 1568].forEach((f, i) => tone(ctx, out, t0, { freq: f, dur: 0.25, type: 'sine', gain: 0.1, delay: i * 0.06 }));
   },
 };
 

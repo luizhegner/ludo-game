@@ -12,7 +12,7 @@ export interface ModeInfo {
   powers: boolean;
   /** Tem cronômetro. */
   timed: boolean;
-  /** Já dá pra jogar nesta versão? (os demais chegam nas fases 3 e 4) */
+  /** Já dá pra jogar nesta versão? (os demais chegam na fase 4) */
   available: boolean;
 }
 
@@ -37,7 +37,7 @@ export const MODES: readonly ModeInfo[] = [
     teams: false,
     powers: true,
     timed: false,
-    available: false,
+    available: true,
   },
   {
     id: 'team',

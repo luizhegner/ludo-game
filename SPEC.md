@@ -234,7 +234,7 @@ Three.js/cannon-es são **camada de apresentação** do dado: entregam um númer
 |---|---|---|
 | **1. Núcleo** | Motor de regras + tabuleiro + peças + dado simples. Partida completa no Clássico, com testes do motor | ✅ |
 | **2. Interface** | Abas, Jogar, Nova partida (3 passos), Jogadores (cadastro/avatar), Ajustes básicos | ✅ |
-| **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba | |
+| **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba | ✅ |
 | **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) | Rápido já joga; pausar/remover/substituir/adicionar já existem |
 | **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON | adiantada na fase 2 (ver abaixo) |
 | **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | página Ranking já existe (por vitórias); falta o Elo |
@@ -268,6 +268,21 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
   O histórico fica em **IndexedDB** (uma partida completa dá ~80 KB de log; em localStorage caberiam só ~60).
 
 ---
+
+### O que a fase 3 entregou
+
+- **Motor** (`src/engine/powers.ts` + `game.ts`): sorteio das 10 casas por raridade (8 visíveis + 2 minas escondidas; nunca em casa
+  segura nem ocupada), reposição pra 10 quando sobram 4, consumo ao pisar com **encadeamento**, e os 11 poderes com as regras da
+  seção 5. Cada poder tem seu bloco de testes isolado (`src/engine/powers.test.ts`, 59 testes) mais uma partida inteira simulada.
+- **Estado**: `GameState.powers = { cells, effects, pending }` ao lado de `pieces` (partidas antigas continuam abrindo).
+  Nova fase de turno `'pick'` (dado personalizável) e eventos próprios no log (`power`, `fly`, `boom`, `shieldBlock`, …).
+- **Interface**: ícone na casa com fundo por família; **segurar o dedo** mostra a explicação na área de status; peças mostram
+  escudo (anel azul), fogo (chama), gelo (bloco ❄️) e multiplicador pendente (×2/×3); foguete/mola voam num arco só; seletor
+  1–6 no centro do tabuleiro pro dado personalizável; toasts e 8 sons novos (ver `SONS.md`); ⋮ → Regras lista os poderes e marca os
+  desligados; Nova partida → passo 3 liga/desliga cada poder (lembrado pra próxima); histórico mostra os eventos na linha do tempo
+  e a coluna ✨ (poderes pegos).
+- **[padrão]** Quando um poder leva a peça pra casa de outro poder, a peça pausa um instante na primeira casa antes de continuar,
+  pra dar pra acompanhar. Peça com fogo que passa por cima de mina escondida a detona sem vítima (como na seção 5).
 
 ## 13. Fora de escopo (por enquanto)
 

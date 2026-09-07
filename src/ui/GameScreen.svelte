@@ -3,7 +3,8 @@
   import { sound } from '../lib/sound';
   import { COLOR_HEX, COLOR_ON } from '../lib/colors';
   import { BASE_ORIGIN } from '../engine/board';
-  import { currentPlayer } from '../engine/game';
+  import { currentPlayer, legalPicks } from '../engine/game';
+  import { POWER_ICON, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
   import { players } from '../stores/players.svelte';
   import Avatar from './Avatar.svelte';
   import Board from './Board.svelte';
@@ -23,6 +24,8 @@
   const me = $derived(currentPlayer(game));
   const canRoll = $derived(game.turn.phase === 'roll' && !match.busy);
   const legal = $derived(game.turn.phase === 'move' ? game.turn.legal : []);
+  /** Dado personalizável: números que a peça consegue andar. */
+  const picks = $derived(game.turn.phase === 'pick' && !match.busy ? legalPicks(game) : []);
 
   /** Face do dado: enquanto gira, o valor já sorteado; parado, a última face. */
   const diceValue = $derived(match.rollingValue ?? match.diceFace);
@@ -47,7 +50,16 @@
   </header>
 
   <div class="board-wrap">
-    <Board state={game} {legal} moving={match.moving} goingHome={match.goingHome} busy={match.busy} onPiece={(i) => { sound.play('tap'); match.move(i); }}>
+    <Board
+      state={game}
+      {legal}
+      moving={match.moving}
+      goingHome={match.goingHome}
+      busy={match.busy}
+      onPiece={(i) => { sound.play('tap'); match.move(i); }}
+      onPowerHold={(p) => match.showInfo(p)}
+      onPowerRelease={() => match.hideInfo()}
+    >
       {#snippet overlay(cell)}
         {#if game.turn.phase !== 'over'}
           <div
@@ -57,12 +69,32 @@
             <Dice color={turn} value={diceValue} enabled={canRoll} size={Math.max(44, cell * 1.9)} rolling={match.rolling} onRoll={() => match.roll()} />
           </div>
         {/if}
+        {#if picks.length}
+          <!-- dado personalizável: escolha do número, no centro do tabuleiro -->
+          <div class="picker" style="--c:{COLOR_HEX[turn]}; --on:{COLOR_ON[turn]}; --cell:{cell}px">
+            <div class="ptitle">🎯 Escolha o número</div>
+            <div class="pgrid">
+              {#each [1, 2, 3, 4, 5, 6] as v}
+                <button class="pick" disabled={!picks.includes(v)} onclick={() => { sound.play('tap'); match.pick(v); }}>{v}</button>
+              {/each}
+            </div>
+          </div>
+        {/if}
       {/snippet}
     </Board>
   </div>
 
   <div class="status" style="--c:{COLOR_HEX[turn]}">
-    {#if match.toasts.length}
+    {#if match.info}
+      {@const p = match.info.power}
+      <div class="pinfo" style="--bg:{powerBg(p)}; --bd:{powerBorder(p)}">
+        <span class="picon">{POWER_ICON[p]}</span>
+        <div>
+          <b>{powerName(p)}</b>
+          <div class="small">{powerBlurb(p)}</div>
+        </div>
+      </div>
+    {:else if match.toasts.length}
       {#each match.toasts as t (t.id)}
         <div class="toast" style="--c:{t.color ? COLOR_HEX[t.color] : 'var(--ink)'}">{t.text}</div>
       {/each}
@@ -167,5 +199,62 @@
     box-shadow: var(--shadow);
     animation: pop 0.25s ease-out;
     max-width: 100%;
+  }
+  .pinfo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--bg);
+    border: 2px solid var(--bd);
+    animation: pop 0.2s ease-out;
+    max-width: 100%;
+    text-align: left;
+  }
+  .picon {
+    font-size: 28px;
+    line-height: 1;
+  }
+  .picker {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 10px 12px 12px;
+    box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.5);
+    border: 3px solid var(--c);
+    animation: pop 0.25s ease-out;
+    z-index: 2;
+  }
+  .ptitle {
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 8px;
+    white-space: nowrap;
+  }
+  .pgrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .pick {
+    width: max(44px, calc(var(--cell) * 2));
+    height: max(44px, calc(var(--cell) * 2));
+    border-radius: 12px;
+    font-size: 22px;
+    font-weight: 800;
+    background: var(--c);
+    color: var(--on);
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+  }
+  .pick:disabled {
+    opacity: 0.3;
+  }
+  .pick:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: none;
   }
 </style>

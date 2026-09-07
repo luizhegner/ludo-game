@@ -2,13 +2,15 @@
  * Última configuração de partida (modo, quem estava em cada cor, regras),
  * pra "Nova partida" já vir pré-preenchida e a "Revanche" ser um toque.
  */
-import type { Color, Mode } from '../engine/types';
+import { POWERS, type Color, type Mode, type Power } from '../engine/types';
 
 export interface Setup {
   mode: Mode;
   /** playerId por cor (null = cor vazia). */
   slots: Record<Color, string | null>;
   captureBonus: boolean;
+  /** Poderes desligados na última partida com poderes. */
+  disabledPowers: Power[];
 }
 
 const KEY = 'ludo.lastSetup.v2';
@@ -16,7 +18,7 @@ const KEY = 'ludo.lastSetup.v2';
 export const EMPTY_SLOTS: Record<Color, string | null> = { green: null, red: null, blue: null, yellow: null };
 
 export function defaultSetup(): Setup {
-  return { mode: 'classic', slots: { ...EMPTY_SLOTS }, captureBonus: false };
+  return { mode: 'classic', slots: { ...EMPTY_SLOTS }, captureBonus: false, disabledPowers: [] };
 }
 
 export function loadSetup(): Setup {
@@ -28,6 +30,7 @@ export function loadSetup(): Setup {
         mode: v.mode ?? 'classic',
         slots: { ...EMPTY_SLOTS, ...(v.slots ?? {}) },
         captureBonus: !!v.captureBonus,
+        disabledPowers: Array.isArray(v.disabledPowers) ? v.disabledPowers.filter((p) => POWERS.includes(p)) : [],
       };
     }
   } catch {

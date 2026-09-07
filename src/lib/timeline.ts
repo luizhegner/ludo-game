@@ -4,6 +4,7 @@
  * movimento comum) são omitidos pra linha não ficar gigante.
  */
 import type { Color, GameEvent, GameState } from '../engine/types';
+import { describePowerEvent } from './powers';
 
 export interface TimelineItem {
   t: number;
@@ -11,7 +12,7 @@ export interface TimelineItem {
   /** Cor de quem protagonizou (pra pintar a bolinha). */
   color?: Color;
   /** Destaque visual. */
-  kind: 'info' | 'capture' | 'finish' | 'done' | 'penalty' | 'over';
+  kind: 'info' | 'capture' | 'finish' | 'done' | 'penalty' | 'over' | 'power';
 }
 
 export function timelineOf(game: GameState, nameOf: (c: Color) => string): TimelineItem[] {
@@ -24,6 +25,11 @@ export function timelineOf(game: GameState, nameOf: (c: Color) => string): Timel
 }
 
 function describe(e: GameEvent, nameOf: (c: Color) => string): TimelineItem | null {
+  const pw = describePowerEvent(e, nameOf);
+  if (pw) {
+    const kind: TimelineItem['kind'] = e.type === 'capture' ? 'capture' : e.type === 'boom' || e.type === 'lost' ? 'penalty' : 'power';
+    return { t: e.t, text: pw.text, color: pw.color, kind };
+  }
   switch (e.type) {
     case 'start':
       return { t: e.t, text: `Partida começou · ${nameOf(e.first)} joga primeiro`, color: e.first, kind: 'info' };

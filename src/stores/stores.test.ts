@@ -204,11 +204,12 @@ describe('ajustes', () => {
 describe('última configuração de partida', () => {
   it('salva e recarrega, com padrão seguro', () => {
     expect(loadSetup().mode).toBe('classic');
-    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, captureBonus: true });
+    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, captureBonus: true, disabledPowers: ['mine'] });
     const s = loadSetup();
     expect(s.mode).toBe('quick');
     expect(s.slots.green).toBe('a');
     expect(s.captureBonus).toBe(true);
+    expect(s.disabledPowers).toEqual(['mine']);
     clearSetup();
     expect(loadSetup().slots.green).toBeNull();
   });

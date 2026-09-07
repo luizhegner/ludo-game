@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { COLORS, type Color, type Mode } from '../engine/types';
+  import { COLORS, type Color, type Mode, type Power } from '../engine/types';
   import { COLOR_HEX, COLOR_NAME, COLOR_ON } from '../lib/colors';
   import { MODES, MODE_BY_ID } from '../lib/modes';
+  import { POWER_ICON, POWER_ORDER, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
   import { sound } from '../lib/sound';
   import { match } from '../stores/match.svelte';
   import { players, type Player } from '../stores/players.svelte';
@@ -22,7 +23,14 @@
   let mode = $state<Mode>(MODE_BY_ID[last.mode]?.available ? last.mode : 'classic');
   let slots = $state<Record<Color, string | null>>({ ...last.slots });
   let captureBonus = $state(last.captureBonus);
+  let disabledPowers = $state<Power[]>([...last.disabledPowers]);
   let picking: Color | null = $state(null);
+
+  const enabledCount = $derived(POWER_ORDER.length - disabledPowers.length);
+  function togglePower(p: Power) {
+    sound.play('tap');
+    disabledPowers = disabledPowers.includes(p) ? disabledPowers.filter((x) => x !== p) : [...disabledPowers, p];
+  }
 
   // jogador apagado do cadastro some do slot
   $effect(() => {
@@ -76,7 +84,7 @@
     if (match.active && !confirm('Tem uma partida em andamento. Começar outra apaga ela. Continuar?')) return;
     sound.play('tap');
     match.start({
-      rules: { mode, captureBonus },
+      rules: { mode, captureBonus, ...(info.powers ? { disabledPowers: [...disabledPowers] } : {}) },
       players: chosen.map((c) => {
         const p = players.get(slots[c])!;
         return { color: c, playerId: p.id, name: p.name, avatar: p.avatar };
@@ -173,6 +181,29 @@
       <Toggle label="Jogada extra ao comer" hint="Quem come uma peça rola o dado de novo" bind:checked={captureBonus} />
     </div>
 
+    {#if info.powers}
+      <div class="card powers">
+        <div class="phead">
+          <b>Poderes</b>
+          <span class="muted small">{enabledCount} de {POWER_ORDER.length} ligados</span>
+        </div>
+        {#each POWER_ORDER as p (p)}
+          {@const on = !disabledPowers.includes(p)}
+          <button class="prow" class:off={!on} onclick={() => togglePower(p)} aria-pressed={on} style="--bg:{powerBg(p)}; --bd:{powerBorder(p)}">
+            <span class="picon">{POWER_ICON[p]}</span>
+            <span class="ptxt">
+              <span class="pname">{powerName(p)}</span>
+              <span class="muted small">{powerBlurb(p)}</span>
+            </span>
+            <span class="sw" class:on></span>
+          </button>
+        {/each}
+        {#if enabledCount === 0}
+          <p class="muted small warn">Sem nenhum poder ligado a partida vira um Clássico.</p>
+        {/if}
+      </div>
+    {/if}
+
     <ul class="fixed muted">
       <li>Sai da base só com 6 · 6 joga de novo · três 6 seguidos: última peça movida volta pra base e perde a vez</li>
       <li>Casas seguras: saída de cada cor e as 4 estrelas</li>
@@ -181,6 +212,10 @@
         <li>Vence quem colocar o <b>primeiro peão</b> no centro</li>
       {:else}
         <li>A partida continua até sobrar um</li>
+      {/if}
+      {#if info.powers}
+        <li>10 casas de poder no anel (8 visíveis + 2 minas escondidas), nunca em casa segura · o poder é consumido ao pisar · quando sobram 4, aparecem 10 novas</li>
+        <li>Segure o dedo numa casa de poder durante a partida pra ver o que ela faz</li>
       {/if}
       <li>Quem começa é sorteado</li>
     </ul>
@@ -447,5 +482,87 @@
   }
   .btn:disabled {
     opacity: 0.5;
+  }
+  .powers {
+    padding: 6px 0 4px;
+  }
+  .phead {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 16px 6px;
+  }
+  .prow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 9px 16px;
+    text-align: left;
+    background: transparent;
+    border-radius: 0;
+    min-height: var(--tap);
+  }
+  .prow + .prow {
+    border-top: 1px solid var(--line);
+  }
+  .prow .picon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    border: 2px solid var(--bd);
+    font-size: 18px;
+    flex: none;
+  }
+  .prow.off .picon {
+    filter: grayscale(1);
+    opacity: 0.55;
+  }
+  .prow.off .pname {
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+  .ptxt {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .pname {
+    font-weight: 700;
+  }
+  .sw {
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    background: #d5cec2;
+    position: relative;
+    flex: none;
+    transition: background 0.2s;
+  }
+  .sw::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s;
+  }
+  .sw.on {
+    background: var(--green);
+  }
+  .sw.on::after {
+    transform: translateX(18px);
+  }
+  .warn {
+    padding: 6px 16px 8px;
   }
 </style>

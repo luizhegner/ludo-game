@@ -3,6 +3,8 @@
   import { players as roster, type Player } from '../stores/players.svelte';
   import { COLOR_HEX, COLOR_NAME } from '../lib/colors';
   import { modeName } from '../lib/modes';
+  import { POWER_ICON, POWER_ORDER, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
+  import { enabledPowers, hasPowers } from '../engine/powers';
   import { COLORS, type Color } from '../engine/types';
   import { playerOf } from '../engine/game';
   import { sound } from '../lib/sound';
@@ -23,6 +25,7 @@
   let picking: { color: Color; kind: 'add' | 'sub' } | null = $state(null);
 
   const game = $derived(match.state!);
+  const powersOn = $derived(hasPowers(game.rules) ? new Set(enabledPowers(game.rules)) : null);
 
   /** Ids já em jogo (não podem entrar de novo em outra cor). */
   const inGame = $derived(game.players.filter((p) => p.status !== 'removed').map((p) => p.playerId));
@@ -119,6 +122,25 @@
         {:else}
           <div><b>Fim:</b> a partida continua até sobrar um</div>
         {/if}
+        {#if powersOn}
+          <div class="ptitle"><b>Casas de poder</b></div>
+          <div class="muted small">
+            10 no anel (8 visíveis + 2 minas escondidas), nunca em casa segura. O poder é consumido ao pisar; quando sobram 4, aparecem 10 novas.
+            Casa de poder não é segura. Se um poder levar a peça a outra casa de poder, ativa de novo. Segure o dedo numa casa pra ver o que ela faz.
+          </div>
+          <div class="plist">
+            {#each POWER_ORDER as p (p)}
+              {@const on = powersOn.has(p)}
+              <div class="prow" class:off={!on} style="--bg:{powerBg(p)}; --bd:{powerBorder(p)}">
+                <span class="picon">{POWER_ICON[p]}</span>
+                <div class="ptxt">
+                  <b>{powerName(p)}{on ? '' : ' — desligado'}</b>
+                  <div class="muted small">{powerBlurb(p)}</div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     {:else}
       <div class="list">
@@ -200,5 +222,36 @@
     gap: 10px;
     font-size: 15px;
     line-height: 1.4;
+  }
+  .ptitle {
+    margin-top: 10px;
+  }
+  .plist {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .prow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: var(--bg);
+    border: 2px solid var(--bd);
+  }
+  .prow.off {
+    filter: grayscale(1);
+    opacity: 0.55;
+  }
+  .prow .picon {
+    font-size: 22px;
+    width: 30px;
+    text-align: center;
+    flex: none;
+  }
+  .prow .ptxt {
+    min-width: 0;
   }
 </style>

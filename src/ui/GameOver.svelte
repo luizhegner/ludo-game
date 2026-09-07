@@ -42,7 +42,7 @@
             <span class="medal">{medals[r.place - 1] ?? `${r.place}º`}</span>
             <Avatar avatar={players.avatarOf(r.p.playerId, r.p.avatar)} size={34} />
             <span class="nm">{players.nameOf(r.p.playerId, r.p.name)}</span>
-            <span class="st muted">⚔{r.p.stats.captures} ☠{r.p.stats.deaths} · {r.p.stats.sixes}× 6</span>
+            <span class="st muted">⚔{r.p.stats.captures} ☠{r.p.stats.deaths} · {r.p.stats.sixes}× 6{game.powers ? ` · ✨${r.p.stats.powers}` : ''}</span>
           </li>
         {/each}
       </ol>

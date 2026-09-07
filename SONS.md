@@ -1,6 +1,6 @@
 # Sons do Ludo
 
-O jogo já toca **13 sons sintetizados** via WebAudio (não precisa de arquivo nenhum).
+O jogo já toca **21 sons sintetizados** via WebAudio (não precisa de arquivo nenhum).
 Se você quiser trocar por samples de verdade, basta colocar o arquivo em
 `public/sounds/<arquivo>.mp3` (ou `.ogg`) com o nome exato da tabela — o jogo
 detecta sozinho e usa o sample no lugar do sintetizado. Não precisa mexer em código.
@@ -27,6 +27,14 @@ Regras práticas:
 | `victory` | Fim da partida (tela do pódio) | Fanfarra completa de vitória, festiva, pode ter aplausos | 1,5–2,5 s |
 | `turn` | Passou a vez pro próximo jogador | "Blip" discreto de duas notas, só pra chamar atenção | 0,15 s |
 | `tap` | Toque em botão / seleção de peça | Clique suave de interface | 0,03–0,05 s |
+| `power` | Peça pisou numa casa de poder | "Brilho" curto de duas notas, tipo item coletado | 0,3–0,4 s |
+| `fly` | Voo de foguete / pulo de mola | "Whoosh" subindo, com sopro | 0,5–0,7 s |
+| `shield` | Escudo absorveu um ataque/explosão | "Clang" metálico curto | 0,2–0,3 s |
+| `boom` | Bomba, mega bomba ou mina explodiu | Estouro grave com cauda | 0,4–0,6 s |
+| `mine` | Mina revelada (alguém passou por cima) | "Tic-tic" de relógio + zumbido de alerta | 0,4–0,5 s |
+| `magic-dice` | Dado personalizável: hora de escolher o número | Duas notas pra cima, em tom de pergunta | 0,3 s |
+| `multiplier` | Dado multiplicado (×2/×3) parou | Dois "pings" rápidos subindo | 0,25 s |
+| `repopulate` | Novas casas de poder apareceram | Arpejo suave de "surgimento" | 0,4–0,5 s |
 
 Onde baixar (todos com licença livre, confira cada um): [freesound.org](https://freesound.org),
 [kenney.nl/assets](https://kenney.nl/assets?q=audio) (pacotes "Interface Sounds", "Casino Audio" e

@@ -6,6 +6,7 @@ import { match, TIMING } from '../stores/match.svelte';
 import { players } from '../stores/players.svelte';
 import { history } from '../stores/history.svelte';
 import { nav } from '../stores/nav.svelte';
+import { powerName } from '../lib/powers';
 
 function text() {
   return document.body.textContent ?? '';
@@ -255,4 +256,158 @@ describe('fluxo de jogo pela UI', () => {
     expect(s.players.find((p) => p.playerId === caio.id)).toBeTruthy();
     unmount(app);
   });
+});
+
+describe('modo Poderes pela UI', () => {
+  beforeEach(() => {
+    resetAll();
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function tick(ms: number) {
+    vi.advanceTimersByTime(ms);
+    flushSync();
+  }
+
+  /** Nova partida em Poderes com 2 jogadores; desliga as minas no passo 3. */
+  function startPowers() {
+    const app = mount(App, { target: document.getElementById('app')! });
+    flushSync();
+    clickText('Nova partida');
+    clickText('Poderes', '.mode');
+    players.create('Ana', '🦊');
+    players.create('Bia', '🐼');
+    clickText('Verde', '.slot');
+    clickText('Ana', '.row');
+    clickText('Vermelho', '.slot');
+    clickText('Bia', '.row');
+    clickText('Continuar com 2 jogadores');
+    expect(text()).toContain('11 de 11 ligados');
+    clickText('Mina', '.prow');
+    expect(text()).toContain('10 de 11 ligados');
+    clickText('Iniciar partida');
+    return app;
+  }
+
+  it('nova partida em Poderes: toggles por poder, casas no tabuleiro, configuração lembrada', () => {
+    const app = startPowers();
+    const s = match.state!;
+    expect(s.rules.mode).toBe('powers');
+    expect(s.rules.disabledPowers).toEqual(['mine']);
+    // sem minas: 10 casas visíveis, todas desenhadas
+    expect(s.powers!.cells.length).toBe(10);
+    expect(s.powers!.cells.every((c) => !c.hidden)).toBe(true);
+    expect(document.querySelectorAll('.power').length).toBe(10);
+    // configuração lembrada
+    const setup = JSON.parse(localStorage.getItem('ludo.lastSetup.v2')!);
+    expect(setup.mode).toBe('powers');
+    expect(setup.disabledPowers).toEqual(['mine']);
+    // ⋮ → Regras lista os poderes e marca a mina como desligada
+    click('.menu-btn');
+    clickText('Regras', '.row');
+    expect(text()).toContain('Casas de poder');
+    expect(text()).toContain('Mina — desligado');
+    expect(text()).toContain('Escudo');
+    unmount(app);
+  });
+
+  it('segurar o dedo numa casa de poder mostra a explicação na área de status', () => {
+    const app = startPowers();
+    const cellEl = document.querySelector('.power') as SVGGElement;
+    cellEl.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }));
+    tick(400);
+    expect(match.info).not.toBeNull();
+    expect(document.querySelector('.pinfo')).toBeTruthy();
+    expect(document.querySelector('.pinfo')!.textContent).toContain(powerName(match.info!.power));
+    cellEl.dispatchEvent(new Event('pointerup', { bubbles: true }));
+    flushSync();
+    // ainda dá tempo de ler depois de soltar
+    expect(match.info).not.toBeNull();
+    tick(TIMING.infoLinger + 50);
+    expect(match.info).toBeNull();
+    expect(document.querySelector('.pinfo')).toBeNull();
+    unmount(app);
+  });
+
+  it('foguete: a peça voa num arco só e o toast conta as casas', () => {
+    const app = startPowers();
+    const color = match.state!.turn.color;
+    // arma o cenário: peça 0 na casa 0, foguete na casa relativa 3 (absoluta pra cor)
+    const s0 = structuredClone(match.state!);
+    s0.pieces[color][0] = 0;
+    s0.powers!.cells = [{ abs: (3 + (color === 'green' ? 0 : 13)) % 52, power: 'rocket' }];
+    (match as unknown as { state: typeof s0 }).state = s0; // injeta o cenário direto no store
+    match.roll(3);
+    tick(TIMING.dice + TIMING.autoMove + 10);
+    // anda 3 casas
+    tick(TIMING.step * 3 + 10);
+    // pausa na casa de poder, depois voa
+    tick(TIMING.power + 100);
+    expect(match.moving).not.toBeNull();
+    expect(match.moving!.flying).toBe(true);
+    expect(document.querySelector('.pawn.flying')).toBeTruthy();
+    tick(TIMING.fly + 200);
+    expect(match.moving).toBeNull();
+    const after = match.state!;
+    const fly = after.log.find((e) => e.type === 'fly') as { n: number; to: number } | undefined;
+    expect(fly).toBeTruthy();
+    expect(after.pieces[color][0]).toBe(fly!.to);
+    expect(text()).toContain(`voou ${fly!.n} casas`);
+    unmount(app);
+  });
+
+  it('dado personalizável: abre o seletor e a escolha move a peça', () => {
+    const app = startPowers();
+    const color = match.state!.turn.color;
+    const s0 = structuredClone(match.state!);
+    s0.pieces[color][0] = 0;
+    s0.powers!.cells = [{ abs: (2 + (color === 'green' ? 0 : 13)) % 52, power: 'magicDice' }];
+    (match as unknown as { state: typeof s0 }).state = s0;
+    match.roll(2);
+    tick(TIMING.dice + TIMING.autoMove + TIMING.step * 2 + TIMING.power + 200);
+    expect(match.state!.turn.phase).toBe('pick');
+    expect(document.querySelector('.picker')).toBeTruthy();
+    expect(document.querySelectorAll('.pick:not([disabled])').length).toBe(6);
+    // dado travado enquanto escolhe
+    expect(document.querySelector('.dice:not([disabled])')).toBeNull();
+    clickText('4', '.pick');
+    tick(TIMING.step * 4 + 200);
+    expect(match.state!.pieces[color][0]).toBe(6);
+    expect(match.state!.turn.color).not.toBe(color);
+    expect(document.querySelector('.picker')).toBeNull();
+    unmount(app);
+  });
+
+  it('partida inteira em Poderes pela UI chega ao pódio', () => {
+    const app = startPowers();
+    let guard = 0;
+    while (!document.querySelector('.podium') && guard++ < 8000) {
+      const dice = document.querySelector('.dice:not([disabled])') as HTMLButtonElement | null;
+      if (dice) {
+        dice.click();
+        flushSync();
+        tick(TIMING.dice + TIMING.hold + TIMING.autoMove + 100);
+        continue;
+      }
+      const pick = document.querySelector('.pick:not([disabled])') as HTMLButtonElement | null;
+      if (pick) {
+        pick.click();
+        flushSync();
+        continue;
+      }
+      const pawn = document.querySelector('.pawn.selectable') as SVGGElement | null;
+      if (pawn) {
+        pawn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        flushSync();
+        continue;
+      }
+      tick(TIMING.step * 7 + TIMING.fly + TIMING.power + TIMING.home);
+    }
+    expect(document.querySelector('.podium')).toBeTruthy();
+    const g = history.list[0];
+    expect(g.rules.mode).toBe('powers');
+    expect(g.log.some((e) => e.type === 'power')).toBe(true);
+    unmount(app);
+  }, 60000);
 });

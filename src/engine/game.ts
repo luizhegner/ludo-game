@@ -495,6 +495,9 @@ function walk(s: GameState, color: Color, piece: number, to: number, kind: MoveK
   const from = s.pieces[color][piece];
   const burning = kind === 'dice' && isBurning(s, color, piece);
 
+  s.pieces[color][piece] = to;
+  if (kind === 'dice') log(s, { t: now, type: 'move', color, piece, from, to });
+
   if (kind === 'dice' && from !== BASE) {
     for (let r = from + 1; r < to && isRing(r); r++) {
       const abs = toAbsolute(color, r);
@@ -512,8 +515,6 @@ function walk(s: GameState, color: Color, piece: number, to: number, kind: MoveK
     }
   }
 
-  s.pieces[color][piece] = to;
-  if (kind === 'dice') log(s, { t: now, type: 'move', color, piece, from, to });
   if (burning) {
     // o fogo é consumido por este movimento (quem foi queimado, foi)
     effectsOf(s, color, piece).fire = 0;

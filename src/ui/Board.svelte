@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { COLORS, type Color, type GameState } from '../engine/types';
+  import { COLORS, type Color, type GameState, type Power } from '../engine/types';
   import {
     BASE_ORIGIN,
     BASE_SLOTS,
@@ -15,6 +15,8 @@
   import { COLOR_HEX, COLOR_DARK, COLOR_LIGHT, COLOR_ON } from '../lib/colors';
   import { isPhoto } from '../lib/avatars';
   import { destination, playerOf, progress } from '../engine/game';
+  import { peekEffects } from '../engine/powers';
+  import { POWER_ICON, powerBg, powerBorder } from '../lib/powers';
   import { players as roster } from '../stores/players.svelte';
   import Pawn from './Pawn.svelte';
   import type { Moving } from '../stores/match.svelte';
@@ -30,11 +32,24 @@
     /** UI travada (animação em andamento): nada é selecionável. */
     busy?: boolean;
     onPiece?: (piece: number) => void;
+    /** Segurou o dedo numa casa de poder (mostrar explicação) / soltou. */
+    onPowerHold?: (power: Power) => void;
+    onPowerRelease?: () => void;
     /** Conteúdo extra por cima do tabuleiro (ex.: dado). Recebe o tamanho de uma célula em px. */
     overlay?: Snippet<[number]>;
   }
 
-  let { state: game, legal = [], moving = null, goingHome = [], busy = false, onPiece, overlay }: Props = $props();
+  let {
+    state: game,
+    legal = [],
+    moving = null,
+    goingHome = [],
+    busy = false,
+    onPiece,
+    onPowerHold,
+    onPowerRelease,
+    overlay,
+  }: Props = $props();
 
   let el: HTMLDivElement | undefined = $state();
   let size = $state(360);
@@ -52,11 +67,48 @@
   const turn = $derived(game.turn.color);
   const present = $derived(new Set(game.players.filter((p) => p.status !== 'removed').map((p) => p.color)));
 
+  /** Casas de poder visíveis (minas escondidas não aparecem). */
+  const powerCells = $derived(
+    (game.powers?.cells ?? [])
+      .filter((c) => !c.hidden)
+      .map((c) => ({ ...c, cell: RING_CELLS[c.abs] })),
+  );
+
+  // segurar o dedo numa casa de poder → explicação na área de status
+  let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  function holdStart(power: Power) {
+    holdEnd();
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      onPowerHold?.(power);
+    }, 350);
+  }
+  function holdEnd() {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    } else {
+      onPowerRelease?.();
+    }
+  }
+
+  /** Efeitos visuais de cada peça (escudo, fogo, gelo, multiplicador pendente). */
+  function fxOf(color: Color, index: number) {
+    const e = peekEffects(game, color, index);
+    const pend = game.powers?.pending[color];
+    return {
+      shield: !!e.shield,
+      fire: (e.fire ?? 0) > 0,
+      frozen: (e.frozen ?? 0) > 0,
+      mult: pend && pend.piece === index ? pend.factor : undefined,
+    };
+  }
+
   /** Casa de destino da(s) peça(s) legais, pra destacar. */
   const targets = $derived.by(() => {
     if (moving || busy) return [] as { x: number; y: number }[];
     if (game.turn.phase !== 'move' || game.turn.dice === null) return [] as { x: number; y: number }[];
-    const d = game.turn.dice;
+    const d = game.turn.dice * (game.turn.mult ?? 1);
     const seen = new Set<string>();
     const out: { x: number; y: number }[] = [];
     for (const i of legal) {
@@ -76,7 +128,7 @@
    * espalhadas levemente e encolhidas pra continuarem visíveis.
    */
   const pawns = $derived.by(() => {
-    type P = { color: Color; index: number; x: number; y: number; scale: number; key: string; moving?: boolean };
+    type P = { color: Color; index: number; x: number; y: number; scale: number; key: string; moving?: boolean; flying?: boolean };
     const groups = new Map<string, P[]>();
     for (const color of COLORS) {
       if (!present.has(color)) continue;
@@ -109,7 +161,16 @@
     // peça em movimento sempre por último (acima de todas), na casa atual da animação
     if (moving) {
       const c = cellOf(moving.color, moving.pos, moving.piece);
-      out.push({ color: moving.color, index: moving.piece, x: c.x, y: c.y, scale: 1, key: `${moving.color}-${moving.piece}`, moving: true });
+      out.push({
+        color: moving.color,
+        index: moving.piece,
+        x: c.x,
+        y: c.y,
+        scale: 1,
+        key: `${moving.color}-${moving.piece}`,
+        moving: !moving.flying,
+        flying: !!moving.flying,
+      });
     }
     return out;
   });
@@ -187,6 +248,33 @@
       {:else if sc}
         <polygon points={star(c.col + 0.5, c.row + 0.5, 0.32)} fill="#fff" />
       {/if}
+    {/each}
+
+    <!-- casas de poder (modo Poderes) -->
+    {#each powerCells as pc (pc.abs)}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <g
+        class="power"
+        onpointerdown={(e) => { e.preventDefault(); holdStart(pc.power); }}
+        onpointerup={holdEnd}
+        onpointercancel={holdEnd}
+        onpointerleave={holdEnd}
+        oncontextmenu={(e) => e.preventDefault()}
+      >
+        <rect
+          x={pc.cell.col + 0.07}
+          y={pc.cell.row + 0.07}
+          width="0.86"
+          height="0.86"
+          rx="0.18"
+          fill={powerBg(pc.power)}
+          stroke={powerBorder(pc.power)}
+          stroke-width="0.05"
+        />
+        <text x={pc.cell.col + 0.5} y={pc.cell.row + 0.5} text-anchor="middle" dominant-baseline="central" font-size={pc.power === 'x2' || pc.power === 'x3' ? 0.42 : 0.56} font-weight="800" fill="#1f2430">
+          {pc.power === 'x2' ? '×2' : pc.power === 'x3' ? '×3' : POWER_ICON[pc.power]}
+        </text>
+      </g>
     {/each}
 
     <!-- setas de entrada -->
@@ -288,6 +376,7 @@
 
     <!-- peças -->
     {#each pawns as p (p.key)}
+      {@const fx = game.powers ? fxOf(p.color, p.index) : undefined}
       <Pawn
         color={p.color}
         x={p.x}
@@ -296,7 +385,12 @@
         selectable={!busy && !moving && p.color === turn && legal.includes(p.index)}
         dim={!moving && game.turn.phase === 'move' && p.color === turn && !legal.includes(p.index) && isRing(game.pieces[p.color][p.index])}
         moving={!!p.moving}
+        flying={!!p.flying}
         home={goingHome.includes(p.key)}
+        shield={fx?.shield}
+        fire={fx?.fire}
+        frozen={fx?.frozen}
+        mult={fx?.mult}
         onclick={() => onPiece?.(p.index)}
       />
     {/each}
@@ -336,5 +430,22 @@
   }
   .base.empty {
     opacity: 0.8;
+  }
+  .power {
+    cursor: help;
+    touch-action: none;
+    animation: power-in 0.5s ease-out;
+  }
+  .power text {
+    pointer-events: none;
+    user-select: none;
+  }
+  @keyframes power-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 </style>

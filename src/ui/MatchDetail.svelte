@@ -107,6 +107,7 @@
         <span class="n" title="Peças perdidas">☠</span>
         <span class="n" title="Seis tirados">6</span>
         <span class="n" title="Lançamentos">🎲</span>
+        {#if game.powers}<span class="n" title="Poderes pegos">✨</span>{/if}
       </div>
       {#each rows as r (r.color)}
         <div class="tr" class:first={r.place === 1} style="--c:{COLOR_HEX[r.color]}">
@@ -119,6 +120,7 @@
           <span class="n">{r.p.stats.deaths}</span>
           <span class="n">{r.p.stats.sixes}</span>
           <span class="n">{r.rolls}</span>
+          {#if game.powers}<span class="n">{r.p.stats.powers}</span>{/if}
         </div>
       {/each}
       {#if game.substituted?.length}
@@ -329,6 +331,9 @@
   }
   li.penalty .txt {
     color: var(--muted);
+  }
+  li.power .txt {
+    background: #f3ecff;
   }
   li.over .txt {
     background: var(--panel);

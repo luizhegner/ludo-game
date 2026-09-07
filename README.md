@@ -19,6 +19,9 @@ Deploy automático no GitHub Pages a cada push na `main` (`.github/workflows/pag
 ```
 src/
   engine/      motor de regras (TypeScript puro, sem DOM) + testes
+    game       turno, movimento, capturas, chegada; jogadores entrando/saindo
+    powers     modo Poderes: catálogo, sorteio das casas, efeitos por peça
+    board      geometria do tabuleiro 15×15
   stores/      estado reativo (Svelte 5 runes) persistido em localStorage
     match      partida em andamento, animações, auto-move
     players    cadastro de jogadores (nome + avatar)
@@ -26,7 +29,7 @@ src/
     settings   ajustes
     setup      última configuração de partida
     nav        abas + pilha de telas (integra com o "voltar" do Android)
-  lib/         utilidades puras: cores, modos, avatares, estatísticas, linha do tempo, backup, sons
+  lib/         utilidades puras: cores, modos, poderes (ícones/textos), avatares, estatísticas, linha do tempo, backup, sons
   ui/          componentes Svelte (páginas, tabuleiro, dado, sheets)
 ```
 

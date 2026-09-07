@@ -10,11 +10,13 @@
  * animação não perde nada), mas `state` só avança quando a animação termina.
  */
 import * as engine from '../engine/game';
-import { BASE, type Color, type GameState } from '../engine/types';
+import { toAbsolute } from '../engine/board';
+import { BASE, type Color, type GameState, type Power } from '../engine/types';
 import { settings, vibrate } from './settings.svelte';
 import { history } from './history.svelte';
-import { EMPTY_SLOTS, saveSetup } from './setup.svelte';
-import { sound } from '../lib/sound';
+import { EMPTY_SLOTS, loadSetup, saveSetup } from './setup.svelte';
+import { sound, type SoundName } from '../lib/sound';
+import { describePowerEvent } from '../lib/powers';
 
 const KEY = 'ludo.match.v1';
 
@@ -32,6 +34,12 @@ export const TIMING = {
   autoMove: 350,
   /** Voo de volta pra base (peça comida / penalidade). */
   home: 550,
+  /** Voo de foguete/mola (uma parábola só, independente da distância). */
+  fly: 700,
+  /** Pausa na casa de poder antes de mostrar o efeito. */
+  power: 350,
+  /** Explicação do poder fica na tela depois de soltar o dedo. */
+  infoLinger: 1500,
 } as const;
 
 /** Eventos de UI derivados do log, pra toasts. */
@@ -51,6 +59,8 @@ export interface Moving {
   to: number;
   /** Passo atual (1 = primeira casa). */
   step: number;
+  /** Voo (foguete/mola): desenhada em arco em vez de casa a casa. */
+  flying?: boolean;
 }
 
 class MatchStore {
@@ -72,6 +82,8 @@ class MatchStore {
   autoPending = $state(false);
   toasts: Toast[] = $state([]);
   status = $state('');
+  /** Explicação de um poder (segurar o dedo na casa); some sozinha. */
+  info: { power: Power } | null = $state.raw(null);
 
   private toastId = 0;
   private timers = new Set<ReturnType<typeof setTimeout>>();
@@ -103,7 +115,12 @@ class MatchStore {
     // lembra a configuração pra "Nova partida" já vir pré-preenchida (vale pra revanche também)
     const slots = { ...EMPTY_SLOTS };
     for (const p of cfg.players) slots[p.color] = p.playerId;
-    saveSetup({ mode: cfg.rules.mode, slots, captureBonus: cfg.rules.captureBonus });
+    saveSetup({
+      mode: cfg.rules.mode,
+      slots,
+      captureBonus: cfg.rules.captureBonus,
+      disabledPowers: cfg.rules.disabledPowers ?? loadSetup().disabledPowers,
+    });
   }
 
   clear(): void {
@@ -130,7 +147,8 @@ class MatchStore {
       this.diceFace = value;
       this.rollingValue = null;
       sound.play('diceLand');
-      if (value === 6) sound.play('six');
+      if (after.turn.mult) sound.play('multiplier');
+      else if (value === 6) sound.play('six');
 
       const passes = after.turn.color !== before.turn.color || after.turn.phase === 'over';
       const noPlay = after.turn.phase !== 'move';
@@ -156,34 +174,118 @@ class MatchStore {
     const after = engine.move(before, piece);
     // persiste o resultado na hora; a UI só mostra depois do último passo
     persist(after);
+    this.animateMove(before, after, piece);
+  }
 
+  /** Dado personalizável: o jogador escolheu `value`. */
+  pick(value: number): void {
+    if (!this.state || this.state.turn.phase !== 'pick' || this.busy) return;
+    if (!engine.legalPicks(this.state).includes(value)) return;
+    const before = this.state;
+    const piece = before.turn.pick!;
+    const after = engine.pick(before, value);
+    persist(after);
+    this.diceFace = value;
+    this.animateMove(before, after, piece);
+  }
+
+  /**
+   * Anima a peça `piece` de onde estava até onde o motor a deixou, em etapas:
+   * o trecho de dado casa a casa, depois cada voo (foguete/mola) num arco.
+   * Se a peça voltou pra base (bomba, mina, escudo…), o voo de volta vem no fim.
+   */
+  private animateMove(before: GameState, after: GameState, piece: number): void {
     const color = before.turn.color;
     const from = before.pieces[color][piece];
-    const to = after.pieces[color][piece];
+    const fresh = after.log.slice(before.log.length);
 
-    if (from === BASE) {
-      // salto único da base pra casa de saída
-      this.moving = { color, piece, pos: from, to, step: 0 };
-      sound.play('out');
-      this.later(() => {
-        this.moving = { color, piece, pos: to, to, step: 1 };
-        this.later(() => this.land(before, after), 40);
-      }, TIMING.out);
-      return;
+    // trechos: [de, até, voo?]
+    const legs: { from: number; to: number; fly: boolean }[] = [];
+    let cur = from;
+    for (const e of fresh) {
+      if (e.type === 'move' && e.color === color && e.piece === piece) {
+        legs.push({ from: cur, to: e.to, fly: false });
+        cur = e.to;
+      } else if (e.type === 'fly' && e.color === color && e.piece === piece) {
+        legs.push({ from: cur, to: e.to, fly: true });
+        cur = e.to;
+      } else if (e.type === 'shieldBlock' && e.attacker === color && e.piece === piece) {
+        legs.push({ from: cur, to: e.back, fly: true });
+        cur = e.back;
+      }
     }
+    if (!legs.length) legs.push({ from, to: after.pieces[color][piece], fly: false });
 
-    this.moving = { color, piece, pos: from, to, step: 0 };
-    const advance = () => {
-      const m = this.moving!;
-      if (m.pos >= to) {
+    // posições (relativas) onde a peça pisou em casa de poder, pra pausar ali
+    const powerStops = new Set(
+      fresh
+        .filter((e) => e.type === 'power' && e.color === color && e.piece === piece)
+        .map((e) => (e.type === 'power' ? e.ring : -1)),
+    );
+    const isPowerStop = (rel: number) => rel >= 0 && rel < 51 && powerStops.has(toAbsolute(color, rel));
+
+    let i = 0;
+    const runLeg = () => {
+      if (i >= legs.length) {
         this.land(before, after);
         return;
       }
-      this.moving = { ...m, pos: m.pos + 1, step: m.step + 1 };
-      sound.play('step');
-      this.later(advance, TIMING.step);
+      const leg = legs[i++];
+      const pause = isPowerStop(leg.to) ? TIMING.power : 40;
+
+      if (leg.fly) {
+        this.moving = { color, piece, pos: leg.from, to: leg.to, step: 0, flying: true };
+        sound.play(leg.to < leg.from ? 'shield' : 'fly');
+        this.later(() => {
+          this.moving = { color, piece, pos: leg.to, to: leg.to, step: 1, flying: true };
+          this.later(runLeg, TIMING.fly + pause);
+        }, 20);
+        return;
+      }
+
+      if (leg.from === BASE) {
+        // salto único da base pra casa de saída
+        this.moving = { color, piece, pos: leg.from, to: leg.to, step: 0 };
+        sound.play('out');
+        this.later(() => {
+          this.moving = { color, piece, pos: leg.to, to: leg.to, step: 1 };
+          this.later(runLeg, pause);
+        }, TIMING.out);
+        return;
+      }
+
+      this.moving = { color, piece, pos: leg.from, to: leg.to, step: 0 };
+      const advance = () => {
+        const m = this.moving!;
+        if (m.pos >= leg.to) {
+          this.later(runLeg, pause);
+          return;
+        }
+        this.moving = { ...m, pos: m.pos + 1, step: m.step + 1 };
+        sound.play('step');
+        this.later(advance, TIMING.step);
+      };
+      this.later(advance, 0);
     };
-    this.later(advance, 0);
+    runLeg();
+  }
+
+  /** Mostra a explicação de um poder na área de status (segurar o dedo na casa). */
+  showInfo(power: Power): void {
+    this.info = { power };
+    this.scheduleInfoHide(6000);
+  }
+  /** Soltou o dedo: a explicação ainda fica um instante pra dar tempo de ler. */
+  hideInfo(): void {
+    if (this.info) this.scheduleInfoHide(TIMING.infoLinger);
+  }
+  private infoTimer: ReturnType<typeof setTimeout> | null = null;
+  private scheduleInfoHide(ms: number): void {
+    if (this.infoTimer) clearTimeout(this.infoTimer);
+    this.infoTimer = setTimeout(() => {
+      this.infoTimer = null;
+      this.info = null;
+    }, ms);
   }
 
   endGame(rank: boolean): void {
@@ -245,8 +347,8 @@ class MatchStore {
   }
 
   private afterMove(s: GameState): void {
-    // nada por enquanto: o próximo passo é sempre o jogador rolar
-    void s;
+    // depois de mover, ou o jogador rola de novo, ou escolhe o número (dado personalizável)
+    if (s.turn.phase === 'pick') sound.play('magicDice');
   }
 
   /**
@@ -281,6 +383,14 @@ class MatchStore {
     const fresh = after.log.slice(before.log.length);
     for (const e of fresh) {
       const name = (c: Color) => engine.playerOf(after, c)?.name ?? c;
+      const pw = describePowerEvent(e, name);
+      if (pw) {
+        this.toast(pw.text, pw.color);
+        const snd = POWER_SOUND[e.type];
+        if (snd) sound.play(snd);
+        if (e.type === 'boom' || (e.type === 'capture' && e.how)) vibrate([30, 40, 60]);
+        continue;
+      }
       switch (e.type) {
         case 'capture':
           this.toast(`${name(e.by)} comeu ${name(e.victim)}!`, e.by);
@@ -323,7 +433,7 @@ class MatchStore {
   private toast(text: string, color?: Color): void {
     const id = ++this.toastId;
     this.toasts = [...this.toasts.slice(-2), { id, text, color }];
-    setTimeout(() => (this.toasts = this.toasts.filter((t) => t.id !== id)), 2200);
+    setTimeout(() => (this.toasts = this.toasts.filter((t) => t.id !== id)), 2600);
   }
 
   private refreshStatus(): void {
@@ -334,11 +444,18 @@ class MatchStore {
     }
     const me = engine.currentPlayer(s)?.name ?? '';
     switch (s.turn.phase) {
-      case 'roll':
-        this.status = s.turn.sixStreak > 0 ? `${me}: tirou 6, joga de novo` : `${me}: lance o dado`;
+      case 'roll': {
+        const pend = s.powers?.pending[s.turn.color];
+        if (pend?.armed) this.status = `${me}: lance o dado — a peça anda ×${pend.factor}`;
+        else this.status = s.turn.sixStreak > 0 ? `${me}: tirou 6, joga de novo` : `${me}: lance o dado`;
         break;
+      }
       case 'move':
-        this.status = s.turn.legal.length > 1 ? `${me}: escolha uma peça` : `${me}: movendo…`;
+        if (s.turn.mult) this.status = `${me}: ${s.turn.dice} × ${s.turn.mult} = ${s.turn.dice! * s.turn.mult} casas`;
+        else this.status = s.turn.legal.length > 1 ? `${me}: escolha uma peça` : `${me}: movendo…`;
+        break;
+      case 'pick':
+        this.status = `🎯 ${me}: escolha um número`;
         break;
       case 'over':
         this.status = 'Fim de jogo';
@@ -368,6 +485,18 @@ class MatchStore {
     if (saved && this.state && saved.id === this.state.id) this.state = saved;
   }
 }
+
+/** Som pra cada evento de poder (os que não estão aqui ficam mudos). */
+const POWER_SOUND: Partial<Record<GameState['log'][number]['type'], SoundName>> = {
+  power: 'power',
+  shieldBreak: 'shield',
+  boom: 'boom',
+  mineRevealed: 'mine',
+  mineDetonated: 'boom',
+  repopulate: 'repopulate',
+  capture: 'capture',
+  pick: 'tap',
+};
 
 function rolledValue(before: GameState, after: GameState): number {
   for (let i = after.log.length - 1; i >= before.log.length; i--) {
