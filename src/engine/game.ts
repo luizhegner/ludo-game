@@ -1,5 +1,5 @@
 /**
- * Motor de regras — Clássico (fase 1).
+ * Motor de regras — Clássico (fase 1) e Poderes (fase 3).
  *
  * Todas as funções recebem um GameState e devolvem um GameState NOVO.
  * Nunca mutam o argumento. Nada aqui toca DOM, Svelte ou Three.js.
@@ -8,16 +8,37 @@ import {
   BASE,
   COLORS,
   FINISH,
+  type BlastPower,
   type Color,
   type EndReason,
   type GameEvent,
   type GameState,
   type PlayerSlot,
+  type Power,
   type Rules,
   type Turn,
 } from './types';
-import { isRing, isSafe, progressOf, toAbsolute } from './board';
+import { SAFE_ABS, isRing, progressOf, toAbsolute } from './board';
 import { nextInt, randomSeed } from './rng';
+import {
+  MEGA_BOMB_RADIUS,
+  REFILL_AT,
+  ROCKET_RANGE,
+  SPRING_RANGE,
+  clearEffects,
+  effectsOf,
+  hasPowers,
+  isBurning,
+  isFrozen,
+  peekEffects,
+  pendingOf,
+  piecesAt,
+  placePowers,
+  powerAt,
+  removeCell,
+  ringDistance,
+  sameSide,
+} from './powers';
 
 // ---------------------------------------------------------------------------
 // Criação
@@ -73,7 +94,7 @@ export function createGame(cfg: NewGameConfig): GameState {
     first = players[r.value].color;
   }
 
-  return {
+  const state: GameState = {
     id: cfg.id ?? newId(),
     createdAt: now,
     updatedAt: now,
@@ -87,6 +108,12 @@ export function createGame(cfg: NewGameConfig): GameState {
     rng: seed,
     log: [{ t: now, type: 'start', first }],
   };
+  if (hasPowers(state.rules)) {
+    state.rules.disabledPowers = [...(cfg.rules.disabledPowers ?? [])];
+    state.powers = { cells: [], effects: {}, pending: {} };
+    placePowers(state);
+  }
+  return state;
 }
 
 function newId(): string {
@@ -138,6 +165,7 @@ export function legalMoves(state: GameState, color: Color, dice: number): number
   for (let i = 0; i < pieces.length; i++) {
     const p = pieces[i];
     if (p === FINISH) continue;
+    if (isFrozen(state, color, i)) continue;
     if (p === BASE) {
       if (dice === 6) legal.push(i);
       continue;
@@ -145,6 +173,16 @@ export function legalMoves(state: GameState, color: Color, dice: number): number
     if (p + dice <= FINISH) legal.push(i);
   }
   return legal;
+}
+
+/** Fase 'pick' (dado personalizável): valores de 1 a 6 que a peça consegue andar. */
+export function legalPicks(state: GameState): number[] {
+  if (state.turn.phase !== 'pick' || state.turn.pick === undefined) return [];
+  const pos = state.pieces[state.turn.color][state.turn.pick];
+  if (pos === BASE || pos === FINISH) return [];
+  const out: number[] = [];
+  for (let v = 1; v <= 6; v++) if (pos + v <= FINISH) out.push(v);
+  return out;
 }
 
 /** Casa de destino de uma peça com o dado atual (pra a UI destacar). */
@@ -188,19 +226,29 @@ export function roll(state: GameState, forced?: number, now = Date.now()): GameS
 
   const me = playerOf(s, color)!;
   if (value === 6) me.stats.sixes++;
-  log(s, { t: now, type: 'roll', color, value });
+
+  // multiplicador ×2/×3 armado pra esta vez: a peça dona anda dado × fator
+  const pend = pendingOf(s, color);
+  if (pend?.armed) {
+    delete s.powers!.pending[color];
+    const pos = s.pieces[color][pend.piece];
+    const ok =
+      pos !== BASE && pos !== FINISH && !isFrozen(s, color, pend.piece) && pos + value * pend.factor <= FINISH;
+    if (ok) {
+      log(s, { t: now, type: 'roll', color, value, mult: pend.factor });
+      // um 6 multiplicado não dá jogada extra nem conta pros três 6
+      s.turn = { ...s.turn, phase: 'move', dice: value, legal: [pend.piece], mult: pend.factor };
+      return s;
+    }
+    log(s, { t: now, type: 'roll', color, value });
+    log(s, { t: now, type: 'multLost', color, piece: pend.piece, factor: pend.factor, reason: 'overshoot' });
+  } else {
+    log(s, { t: now, type: 'roll', color, value });
+  }
 
   // três 6 seguidos: última peça movida volta pra base e perde a vez
   if (value === 6 && s.turn.sixStreak + 1 >= 3) {
-    const piece = s.turn.lastMoved;
-    let penalized: number | null = null;
-    if (piece !== null) {
-      const pos = s.pieces[color][piece];
-      if (pos !== BASE && pos !== FINISH) {
-        s.pieces[color][piece] = BASE;
-        penalized = piece;
-      }
-    }
+    const penalized = threeSixes(s, color, now);
     log(s, { t: now, type: 'threeSixes', color, piece: penalized });
     return advanceTurn(s, now);
   }
@@ -231,56 +279,59 @@ export function move(state: GameState, piece: number, now = Date.now()): GameSta
   s.updatedAt = now;
   const color = s.turn.color;
   const dice = s.turn.dice!;
-  const me = playerOf(s, color)!;
+  const mult = s.turn.mult;
 
   const from = s.pieces[color][piece];
-  const to = destination(from, dice);
-  s.pieces[color][piece] = to;
   s.turn.lastMoved = piece;
-  log(s, { t: now, type: 'move', color, piece, from, to });
+  const out = walk(s, color, piece, destination(from, dice * (mult ?? 1)), 'dice', now);
 
-  let extra = dice === 6;
+  let extra = mult ? false : dice === 6;
+  if (out.captured > 0 && s.rules.captureBonus) extra = true;
+  return endOfMove(s, color, out, extra, now);
+}
 
-  // captura
-  if (isRing(to) && !isSafe(color, to)) {
-    const abs = toAbsolute(color, to);
-    let captured = 0;
-    for (const other of s.players) {
-      if (other.color === color) continue;
-      const theirs = s.pieces[other.color];
-      for (let j = 0; j < theirs.length; j++) {
-        if (isRing(theirs[j]) && toAbsolute(other.color, theirs[j]) === abs) {
-          theirs[j] = BASE;
-          captured++;
-          other.stats.deaths++;
-          me.stats.captures++;
-          log(s, { t: now, type: 'capture', by: color, victim: other.color, piece: j, ring: abs });
-        }
-      }
-    }
-    if (captured > 0 && s.rules.captureBonus) extra = true;
+/** Dado personalizável: o jogador escolhe `value` (1–6) e a peça marcada anda na hora. */
+export function pick(state: GameState, value: number, now = Date.now()): GameState {
+  if (state.turn.phase !== 'pick' || state.turn.pick === undefined) throw new Error('não é hora de escolher');
+  if (!legalPicks(state).includes(value)) throw new Error('valor inválido');
+
+  const s = clone(state);
+  s.updatedAt = now;
+  const color = s.turn.color;
+  const piece = s.turn.pick!;
+  const me = playerOf(s, color)!;
+  const from = s.pieces[color][piece];
+
+  if (value === 6) me.stats.sixes++;
+  log(s, { t: now, type: 'pick', color, piece, value });
+  let extra = s.turn.extra ?? false;
+  s.turn = { ...s.turn, phase: 'move', dice: value, legal: [piece], pick: undefined, extra: undefined, lastMoved: piece };
+
+  // o número escolhido vale como um dado: 6 conta pros três 6
+  if (value === 6 && s.turn.sixStreak + 1 >= 3) {
+    const penalized = threeSixes(s, color, now);
+    log(s, { t: now, type: 'threeSixes', color, piece: penalized });
+    refill(s, now);
+    return advanceTurn(s, now);
   }
+  s.turn.sixStreak = value === 6 ? s.turn.sixStreak + 1 : 0;
 
-  // chegada
-  if (to === FINISH) {
-    log(s, { t: now, type: 'finish', color, piece });
-    const done =
-      s.rules.mode === 'quick' ? true : s.pieces[color].every((p) => p === FINISH);
-    if (done) {
-      if (s.rules.mode === 'quick') {
-        // no Rápido as outras peças saem do tabuleiro
-        s.pieces[color] = s.pieces[color].map((p) => (p === FINISH ? FINISH : BASE));
-      }
-      s.finished.push(color);
-      log(s, { t: now, type: 'playerDone', color, place: s.finished.length });
-      extra = false;
-    }
+  const out = walk(s, color, piece, from + value, 'dice', now);
+  if (value === 6) extra = true;
+  if (out.captured > 0 && s.rules.captureBonus) extra = true;
+  return endOfMove(s, color, out, extra, now);
+}
+
+/** Fecha uma jogada: espera escolha, repovoa casas, encerra ou passa a vez. */
+function endOfMove(s: GameState, color: Color, out: Outcome, extra: boolean, now: number): GameState {
+  if (out.picking) {
+    s.turn = { ...s.turn, phase: 'pick', legal: [], mult: undefined, extra };
+    return s;
   }
-
+  refill(s, now);
   if (shouldEnd(s)) return finishGame(s, 'finished', now);
-
   if (extra && isPlayable(s, color)) {
-    s.turn = { ...s.turn, phase: 'roll', dice: null, legal: [] };
+    s.turn = { ...s.turn, phase: 'roll', dice: null, legal: [], mult: undefined, pick: undefined, extra: undefined };
     return s;
   }
   return advanceTurn(s, now);
@@ -325,6 +376,10 @@ export function removePlayer(state: GameState, color: Color, now = Date.now()): 
   p.status = 'removed';
   p.leftAt = now;
   s.pieces[color] = [BASE, BASE, BASE, BASE];
+  if (s.powers) {
+    delete s.powers.effects[color];
+    delete s.powers.pending[color];
+  }
   return afterAvailabilityChange(s, color, now);
 }
 
@@ -384,7 +439,312 @@ function advanceTurn(s: GameState, now: number): GameState {
   const next = nextColor(s, s.turn.color);
   s.turn = freshTurn(next);
   log(s, { t: now, type: 'turn', color: next });
+  beginTurn(s, next, now);
   return s;
+}
+
+/** Início da vez de `color`: contadores de gelo/fogo caem, multiplicador arma. */
+function beginTurn(s: GameState, color: Color, now: number): void {
+  const p = s.powers;
+  if (!p) return;
+  const fx = p.effects[color];
+  if (fx) {
+    for (let i = 0; i < fx.length; i++) {
+      const e = fx[i];
+      if (!e) continue;
+      if (e.frozen) e.frozen--;
+      if (e.fire) {
+        e.fire--;
+        if (!e.fire) log(s, { t: now, type: 'fireOut', color, piece: i, reason: 'expired' });
+      }
+    }
+  }
+  const pend = p.pending[color];
+  if (pend) pend.armed = true;
+}
+
+/** Penalidade dos três 6: última peça movida volta pra base. Devolve a peça punida. */
+function threeSixes(s: GameState, color: Color, now: number): number | null {
+  const piece = s.turn.lastMoved;
+  if (piece === null) return null;
+  const pos = s.pieces[color][piece];
+  if (pos === BASE || pos === FINISH) return null;
+  sendHome(s, color, piece, now);
+  return piece;
+}
+
+// ---------------------------------------------------------------------------
+// Movimento e pouso (compartilhado por dado, dado personalizável e voos)
+// ---------------------------------------------------------------------------
+
+interface Outcome {
+  /** Adversários comidos por pouso ou fogo (pra jogada extra opcional). */
+  captured: number;
+  /** Parou numa casa de dado personalizável: espera a escolha. */
+  picking: boolean;
+}
+
+type MoveKind = 'dice' | 'fly';
+
+/**
+ * Leva a peça até `to` e resolve o pouso. Movimento de dado interage com o
+ * caminho (revela minas, fogo queima); voo de foguete/mola não.
+ */
+function walk(s: GameState, color: Color, piece: number, to: number, kind: MoveKind, now: number): Outcome {
+  const out: Outcome = { captured: 0, picking: false };
+  const from = s.pieces[color][piece];
+  const burning = kind === 'dice' && isBurning(s, color, piece);
+
+  if (kind === 'dice' && from !== BASE) {
+    for (let r = from + 1; r < to && isRing(r); r++) {
+      const abs = toAbsolute(color, r);
+      const cell = powerAt(s, abs);
+      if (cell?.power === 'mine' && cell.hidden) {
+        if (burning) {
+          removeCell(s, abs);
+          log(s, { t: now, type: 'mineDetonated', ring: abs, by: color });
+        } else {
+          cell.hidden = false;
+          log(s, { t: now, type: 'mineRevealed', ring: abs, by: color });
+        }
+      }
+      if (burning && !SAFE_ABS.has(abs)) burnCell(s, color, piece, abs, now, out);
+    }
+  }
+
+  s.pieces[color][piece] = to;
+  if (kind === 'dice') log(s, { t: now, type: 'move', color, piece, from, to });
+  if (burning) {
+    // o fogo é consumido por este movimento (quem foi queimado, foi)
+    effectsOf(s, color, piece).fire = 0;
+    log(s, { t: now, type: 'burn', color, piece, from, to });
+  }
+
+  land(s, color, piece, from, to, burning ? 'fire' : undefined, now, out);
+  return out;
+}
+
+/** Fogo passando por `abs`: adversários voltam pra base; escudo quebra e a peça fica. */
+function burnCell(s: GameState, color: Color, piece: number, abs: number, now: number, out: Outcome): void {
+  const me = playerOf(s, color)!;
+  for (const e of piecesAt(s, abs)) {
+    if (sameSide(s, color, e.color)) continue;
+    const fx = effectsOf(s, e.color, e.piece);
+    if (fx.shield) {
+      fx.shield = false;
+      log(s, { t: now, type: 'shieldBreak', color: e.color, piece: e.piece, by: color, cause: 'fire' });
+      continue;
+    }
+    sendHome(s, e.color, e.piece, now);
+    playerOf(s, e.color)!.stats.deaths++;
+    me.stats.captures++;
+    out.captured++;
+    log(s, { t: now, type: 'capture', by: color, victim: e.color, piece: e.piece, ring: abs, how: 'fire' });
+  }
+}
+
+/** Pouso em `to`: escudo/captura, chegada, casa de poder (com cadeia). */
+function land(
+  s: GameState,
+  color: Color,
+  piece: number,
+  from: number,
+  to: number,
+  how: 'fire' | undefined,
+  now: number,
+  out: Outcome,
+): void {
+  const me = playerOf(s, color)!;
+
+  if (isRing(to)) {
+    const abs = toAbsolute(color, to);
+    if (!SAFE_ABS.has(abs)) {
+      const enemies = piecesAt(s, abs).filter((e) => !sameSide(s, color, e.color));
+      const shielded = enemies.find((e) => peekEffects(s, e.color, e.piece).shield);
+      if (shielded) {
+        // escudo absorve o ataque: some, e o atacante volta pra onde estava
+        effectsOf(s, shielded.color, shielded.piece).shield = false;
+        s.pieces[color][piece] = from;
+        log(s, {
+          t: now,
+          type: 'shieldBlock',
+          attacker: color,
+          piece,
+          defender: shielded.color,
+          defenderPiece: shielded.piece,
+          ring: abs,
+          back: from,
+        });
+        return;
+      }
+      for (const e of enemies) {
+        sendHome(s, e.color, e.piece, now);
+        playerOf(s, e.color)!.stats.deaths++;
+        me.stats.captures++;
+        out.captured++;
+        log(s, { t: now, type: 'capture', by: color, victim: e.color, piece: e.piece, ring: abs, how });
+      }
+    }
+    const cell = powerAt(s, abs);
+    if (cell) {
+      removeCell(s, abs);
+      me.stats.powers++;
+      log(s, { t: now, type: 'power', color, piece, power: cell.power, ring: abs });
+      applyPower(s, color, piece, cell.power, abs, to, now, out);
+    }
+    return;
+  }
+
+  // reta final ou centro: fogo apaga
+  const fx = peekEffects(s, color, piece);
+  if (fx.fire) {
+    effectsOf(s, color, piece).fire = 0;
+    log(s, { t: now, type: 'fireOut', color, piece, reason: 'stretch' });
+  }
+  if (to === FINISH) arrive(s, color, piece, now);
+}
+
+/** Peça chegou ao centro. */
+function arrive(s: GameState, color: Color, piece: number, now: number): void {
+  log(s, { t: now, type: 'finish', color, piece });
+  clearEffects(s, color, piece);
+  dropPending(s, color, piece, 'finished', now);
+  const done = s.rules.mode === 'quick' ? true : s.pieces[color].every((p) => p === FINISH);
+  if (done) {
+    if (s.rules.mode === 'quick') {
+      // no Rápido as outras peças saem do tabuleiro
+      s.pieces[color] = s.pieces[color].map((p) => (p === FINISH ? FINISH : BASE));
+    }
+    s.finished.push(color);
+    log(s, { t: now, type: 'playerDone', color, place: s.finished.length });
+  }
+}
+
+function applyPower(
+  s: GameState,
+  color: Color,
+  piece: number,
+  power: Power,
+  abs: number,
+  pos: number,
+  now: number,
+  out: Outcome,
+): void {
+  switch (power) {
+    case 'shield':
+      effectsOf(s, color, piece).shield = true;
+      return;
+    case 'freeze': {
+      const fx = effectsOf(s, color, piece);
+      fx.frozen = 2;
+      if (fx.fire) {
+        fx.fire = 0;
+        log(s, { t: now, type: 'fireOut', color, piece, reason: 'frozen' });
+      }
+      dropPending(s, color, piece, 'frozen', now);
+      return;
+    }
+    case 'fire':
+      effectsOf(s, color, piece).fire = 2;
+      return;
+    case 'x2':
+    case 'x3': {
+      const factor = power === 'x2' ? 2 : 3;
+      const old = pendingOf(s, color);
+      if (old) log(s, { t: now, type: 'multLost', color, piece: old.piece, factor: old.factor, reason: 'replaced' });
+      s.powers!.pending[color] = { piece, factor, armed: false };
+      return;
+    }
+    case 'rocket':
+    case 'spring': {
+      const [lo, hi] = power === 'rocket' ? ROCKET_RANGE : SPRING_RANGE;
+      const r = nextInt(s.rng, lo, hi);
+      s.rng = r.seed;
+      const to = Math.min(pos + r.value, FINISH);
+      log(s, { t: now, type: 'fly', color, piece, power, from: pos, to, n: r.value });
+      const sub = walk(s, color, piece, to, 'fly', now);
+      out.captured += sub.captured;
+      out.picking = out.picking || sub.picking;
+      return;
+    }
+    case 'magicDice':
+      s.turn.pick = piece;
+      out.picking = true;
+      return;
+    case 'bomb':
+    case 'mine':
+      log(s, { t: now, type: 'boom', by: color, piece, power, ring: abs });
+      blastHit(s, color, color, piece, abs, power, now);
+      return;
+    case 'megaBomb': {
+      log(s, { t: now, type: 'boom', by: color, piece, power, ring: abs });
+      const victims: { color: Color; piece: number; abs: number }[] = [];
+      for (const p of s.players) {
+        if (p.status === 'removed') continue;
+        const arr = s.pieces[p.color];
+        for (let i = 0; i < arr.length; i++) {
+          if (!isRing(arr[i])) continue;
+          const a = toAbsolute(p.color, arr[i]);
+          if (ringDistance(a, abs) <= MEGA_BOMB_RADIUS) victims.push({ color: p.color, piece: i, abs: a });
+        }
+      }
+      for (const v of victims) blastHit(s, color, v.color, v.piece, v.abs, power, now);
+      return;
+    }
+  }
+}
+
+/** Explosão atinge uma peça: escudo absorve; senão volta pra base (casa segura não protege). */
+function blastHit(
+  s: GameState,
+  by: Color,
+  color: Color,
+  piece: number,
+  abs: number,
+  cause: BlastPower,
+  now: number,
+): void {
+  const fx = effectsOf(s, color, piece);
+  if (fx.shield) {
+    fx.shield = false;
+    log(s, { t: now, type: 'shieldBreak', color, piece, by, cause });
+    return;
+  }
+  sendHome(s, color, piece, now);
+  playerOf(s, color)!.stats.deaths++;
+  if (sameSide(s, by, color)) {
+    log(s, { t: now, type: 'lost', color, piece, cause });
+  } else {
+    playerOf(s, by)!.stats.captures++;
+    log(s, { t: now, type: 'capture', by, victim: color, piece, ring: abs, how: cause });
+  }
+}
+
+/** Peça volta pra base: perde efeitos e multiplicador pendente. */
+function sendHome(s: GameState, color: Color, piece: number, now: number): void {
+  s.pieces[color][piece] = BASE;
+  clearEffects(s, color, piece);
+  dropPending(s, color, piece, 'home', now);
+}
+
+function dropPending(
+  s: GameState,
+  color: Color,
+  piece: number,
+  reason: 'home' | 'frozen' | 'finished',
+  now: number,
+): void {
+  const pend = pendingOf(s, color);
+  if (!pend || pend.piece !== piece) return;
+  delete s.powers!.pending[color];
+  log(s, { t: now, type: 'multLost', color, piece, factor: pend.factor, reason });
+}
+
+/** Sobrando poucas casas de poder, repovoa pra 10. */
+function refill(s: GameState, now: number): void {
+  if (!s.powers || s.powers.cells.length > REFILL_AT) return;
+  const added = placePowers(s);
+  if (added.length) log(s, { t: now, type: 'repopulate', rings: added });
 }
 
 /** Acaba quando resta no máximo um jogador ativo que ainda não terminou. */
