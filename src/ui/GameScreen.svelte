@@ -4,6 +4,8 @@
   import { COLOR_HEX, COLOR_ON } from '../lib/colors';
   import { BASE_ORIGIN } from '../engine/board';
   import { currentPlayer } from '../engine/game';
+  import { players } from '../stores/players.svelte';
+  import Avatar from './Avatar.svelte';
   import Board from './Board.svelte';
   import Dice from './Dice.svelte';
   import GameMenu from './GameMenu.svelte';
@@ -36,7 +38,10 @@
   <header>
     <div class="who" style="--c:{COLOR_HEX[turn]}; --on:{COLOR_ON[turn]}">
       <span class="dot"></span>
-      <span class="name">{me?.avatar} {me?.name}</span>
+      {#if me}
+        <Avatar avatar={players.avatarOf(me.playerId, me.avatar)} size={28} />
+        <span class="name">{players.nameOf(me.playerId, me.name)}</span>
+      {/if}
     </div>
     <button class="menu-btn" aria-label="Menu" onclick={() => { sound.play('tap'); menuOpen = true; }}>⋮</button>
   </header>
@@ -93,7 +98,7 @@
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 14px 6px 8px;
+    padding: 5px 14px 5px 8px;
     border-radius: 999px;
     background: var(--c);
     color: var(--on);
@@ -103,12 +108,18 @@
     transition: background 0.25s;
   }
   .dot {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: #fff;
     opacity: 0.9;
     animation: pulse 1.4s ease-in-out infinite;
+  }
+  .name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 50vw;
   }
   .menu-btn {
     width: 44px;

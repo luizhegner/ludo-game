@@ -13,7 +13,9 @@
     isRing,
   } from '../engine/board';
   import { COLOR_HEX, COLOR_DARK, COLOR_LIGHT, COLOR_ON } from '../lib/colors';
+  import { isPhoto } from '../lib/avatars';
   import { destination, playerOf, progress } from '../engine/game';
+  import { players as roster } from '../stores/players.svelte';
   import Pawn from './Pawn.svelte';
   import type { Moving } from '../stores/match.svelte';
 
@@ -156,6 +158,9 @@
           <stop offset="1" stop-color={COLOR_DARK[c]} />
         </radialGradient>
       {/each}
+      <clipPath id="avatar-clip" clipPathUnits="objectBoundingBox">
+        <circle cx="0.5" cy="0.5" r="0.5" />
+      </clipPath>
     </defs>
 
     <rect x="0" y="0" width="15" height="15" fill="#fff" />
@@ -222,17 +227,44 @@
           <circle cx={o.col + s.dc} cy={o.row + s.dr} r="0.62" fill={COLOR_LIGHT[k]} stroke={COLOR_DARK[k]} stroke-width="0.05" opacity="0.9" />
         {/each}
         {#if p && active}
-          <text
-            x={o.col + 3}
-            y={o.row + 5.62}
-            text-anchor="middle"
-            font-size="0.6"
-            font-weight="700"
-            fill={COLOR_ON[k]}
-            style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.05"
-          >
-            {p.avatar} {p.name}
-          </text>
+          {@const avatar = roster.avatarOf(p.playerId, p.avatar)}
+          {@const name = roster.nameOf(p.playerId, p.name)}
+          {#if isPhoto(avatar)}
+            <!-- foto: círculo recortado + nome ao lado -->
+            <image
+              href={avatar}
+              x={o.col + 0.55}
+              y={o.row + 5.18}
+              width="0.72"
+              height="0.72"
+              clip-path="url(#avatar-clip)"
+              preserveAspectRatio="xMidYMid slice"
+            />
+            <circle cx={o.col + 0.91} cy={o.row + 5.54} r="0.36" fill="none" stroke="#fff" stroke-width="0.06" />
+            <text
+              x={o.col + 1.45}
+              y={o.row + 5.74}
+              text-anchor="start"
+              font-size="0.58"
+              font-weight="700"
+              fill={COLOR_ON[k]}
+              style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.05"
+            >
+              {name.length > 10 ? name.slice(0, 9) + '…' : name}
+            </text>
+          {:else}
+            <text
+              x={o.col + 3}
+              y={o.row + 5.62}
+              text-anchor="middle"
+              font-size="0.6"
+              font-weight="700"
+              fill={COLOR_ON[k]}
+              style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.05"
+            >
+              {avatar} {name.length > 11 ? name.slice(0, 10) + '…' : name}
+            </text>
+          {/if}
           <text x={o.col + 3} y={o.row + 0.66} text-anchor="middle" font-size="0.48" font-weight="700" fill={COLOR_ON[k]} opacity="0.9">
             {Math.round(progress(game, k) * 100)}%
           </text>

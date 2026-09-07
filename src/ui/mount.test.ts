@@ -3,52 +3,134 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mount, unmount, flushSync } from 'svelte';
 import App from '../App.svelte';
 import { match, TIMING } from '../stores/match.svelte';
+import { players } from '../stores/players.svelte';
+import { history } from '../stores/history.svelte';
+import { nav } from '../stores/nav.svelte';
+
+function text() {
+  return document.body.textContent ?? '';
+}
+function click(sel: string) {
+  const el = document.querySelector(sel) as HTMLElement | null;
+  if (!el) throw new Error(`não achei ${sel}`);
+  el.click();
+  flushSync();
+}
+/** Clica no botão cujo texto contém `label`. */
+function clickText(label: string, sel = 'button') {
+  const el = [...document.querySelectorAll<HTMLElement>(sel)].find((b) => (b.textContent ?? '').includes(label));
+  if (!el) throw new Error(`não achei botão "${label}"`);
+  el.click();
+  flushSync();
+}
+
+function resetAll() {
+  localStorage.clear();
+  match.clear();
+  players.replaceAll([]);
+  history.clear();
+  nav.switchTab('home');
+  document.body.innerHTML = '<div id="app"></div>';
+}
+
+/** Abre Nova partida e monta uma de 2 jogadores (cria os jogadores pelo cadastro). */
+function startTwoPlayers() {
+  const app = mount(App, { target: document.getElementById('app')! });
+  flushSync();
+  clickText('Nova partida');
+  // passo 1: modo
+  expect(text()).toContain('Clássico');
+  clickText('Clássico', '.mode');
+  // passo 2: cores × jogadores
+  expect(text()).toContain('Escolha pelo menos 2 cores');
+  const ana = players.create('Ana', '🦊');
+  const bia = players.create('Bia', '🐼');
+  clickText('Verde', '.slot');
+  clickText('Ana', '.row');
+  clickText('Vermelho', '.slot');
+  clickText('Bia', '.row');
+  expect(text()).toContain('Continuar com 2 jogadores');
+  clickText('Continuar com 2 jogadores');
+  // passo 3: regras
+  expect(text()).toContain('Iniciar partida');
+  clickText('Iniciar partida');
+  return { app, ana, bia };
+}
 
 describe('App monta no navegador (jsdom)', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    document.body.innerHTML = '<div id="app"></div>';
-  });
+  beforeEach(resetAll);
 
-  it('abre na home, cria partida e mostra o tabuleiro', async () => {
+  it('abre na aba Jogar com a barra de abas', () => {
     const app = mount(App, { target: document.getElementById('app')! });
     flushSync();
-    expect(document.body.textContent).toContain('Nova partida');
+    expect(text()).toContain('Nova partida');
+    expect(document.querySelectorAll('.tabbar .tab').length).toBe(5);
+    unmount(app);
+  });
 
-    (document.querySelector('.btn.primary') as HTMLButtonElement).click();
-    flushSync();
-    expect(document.body.textContent).toContain('Começar com 2 jogadores');
-
-    (document.querySelector('.btn.primary') as HTMLButtonElement).click();
-    flushSync();
+  it('nova partida em 3 passos: modo → jogadores → regras → tabuleiro', () => {
+    const { app, ana, bia } = startTwoPlayers();
     expect(document.querySelector('svg')).toBeTruthy();
     expect(document.querySelectorAll('.pawn').length).toBe(8);
     expect(document.querySelector('.dice')).toBeTruthy();
-    // partida ficou salva pra retomar
-    expect(localStorage.getItem('ludo.match.v1')).toBeTruthy();
+    // barra de abas some na partida
+    expect(document.querySelector('.tabbar')).toBeNull();
+    // partida ficou salva pra retomar, com os ids do cadastro
+    const saved = JSON.parse(localStorage.getItem('ludo.match.v1')!);
+    expect(saved.players.map((p: { playerId: string }) => p.playerId).sort()).toEqual([ana.id, bia.id].sort());
+    // e a configuração fica lembrada pra próxima
+    const setup = JSON.parse(localStorage.getItem('ludo.lastSetup.v2')!);
+    expect(setup.slots.green).toBe(ana.id);
+    expect(setup.slots.red).toBe(bia.id);
+    unmount(app);
+  });
 
+  it('o mesmo jogador não pode ocupar duas cores', () => {
+    const app = mount(App, { target: document.getElementById('app')! });
+    flushSync();
+    players.create('Ana', '🦊');
+    clickText('Nova partida');
+    clickText('Clássico', '.mode');
+    clickText('Verde', '.slot');
+    clickText('Ana', '.row');
+    clickText('Vermelho', '.slot');
+    // Ana aparece desabilitada
+    const row = [...document.querySelectorAll<HTMLButtonElement>('.row')].find((b) => b.textContent?.includes('Ana'))!;
+    expect(row.disabled).toBe(true);
+    unmount(app);
+  });
+
+  it('navega pelas abas e a página Jogadores cadastra alguém', () => {
+    const app = mount(App, { target: document.getElementById('app')! });
+    flushSync();
+    clickText('Jogadores', '.tab');
+    expect(text()).toContain('Ninguém cadastrado');
+    clickText('Cadastrar jogador');
+    const input = document.querySelector('input:not([type])') as HTMLInputElement;
+    input.value = 'Carlos';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    clickText('Criar jogador');
+    expect(players.list.map((p) => p.name)).toEqual(['Carlos']);
+    expect(text()).toContain('Carlos');
+    expect(text()).toContain('ainda não jogou');
+
+    clickText('Ranking', '.tab');
+    expect(text()).toContain('Ainda não tem ranking');
+    clickText('Histórico', '.tab');
+    expect(text()).toContain('Nenhuma partida ainda');
+    clickText('Ajustes', '.tab');
+    expect(text()).toContain('Exportar backup');
     unmount(app);
   });
 });
 
 describe('fluxo de jogo pela UI', () => {
   beforeEach(() => {
-    localStorage.clear();
-    match.clear();
-    document.body.innerHTML = '<div id="app"></div>';
+    resetAll();
     vi.useFakeTimers();
   });
   afterEach(() => vi.useRealTimers());
-
-  function startTwoPlayers() {
-    const app = mount(App, { target: document.getElementById('app')! });
-    flushSync();
-    (document.querySelector('.btn.primary') as HTMLButtonElement).click();
-    flushSync();
-    (document.querySelector('.btn.primary') as HTMLButtonElement).click();
-    flushSync();
-    return app;
-  }
 
   /** Avança o relógio (timers encadeados disparam em sequência) e atualiza a UI. */
   function tick(ms: number) {
@@ -56,8 +138,8 @@ describe('fluxo de jogo pela UI', () => {
     flushSync();
   }
 
-  it('rola o dado, move peças e chega ao fim de jogo com 2 jogadores', () => {
-    const app = startTwoPlayers();
+  it('rola o dado, move peças, chega ao fim de jogo e a partida vai pro histórico', () => {
+    const { app, ana, bia } = startTwoPlayers();
 
     // joga até acabar (ou até um limite de segurança)
     let guard = 0;
@@ -79,12 +161,32 @@ describe('fluxo de jogo pela UI', () => {
       tick(TIMING.step * 7 + TIMING.home);
     }
     expect(document.querySelector('.podium')).toBeTruthy();
-    expect(document.body.textContent).toContain('🥇');
+    expect(text()).toContain('🥇');
+
+    // histórico recebeu a partida
+    expect(history.list.length).toBe(1);
+    const g = history.list[0];
+    expect(g.placements?.length).toBe(2);
+    const winner = g.players.find((p) => p.color === g.placements![0])!;
+    expect([ana.id, bia.id]).toContain(winner.playerId);
+
+    // "Início" limpa a partida e volta pra aba Jogar, que mostra o top 3 e a última partida
+    clickText('Início');
+    expect(match.state).toBeNull();
+    expect(text()).toContain('Top 3');
+    expect(text()).toContain('Últimas partidas');
+    expect(text()).toContain(`${winner.name} venceu`);
+
+    // estatísticas do vencedor
+    const st = history.statsFor(winner.playerId);
+    expect(st.games).toBe(1);
+    expect(st.wins).toBe(1);
+    expect(st.streak).toBe(1);
     unmount(app);
   }, 30000);
 
   it('peça anda casa a casa (não teleporta) e a UI fica travada durante o movimento', () => {
-    const app = startTwoPlayers();
+    const { app } = startTwoPlayers();
     const s0 = match.state!;
     const color = s0.turn.color;
 
@@ -134,6 +236,23 @@ describe('fluxo de jogo pela UI', () => {
     expect(match.busy).toBe(false);
     expect(match.state!.pieces[color][0]).toBe(4);
     expect(match.state!.turn.color).not.toBe(color);
+    unmount(app);
+  });
+
+  it('menu ⋮ → Jogadores adiciona alguém do cadastro numa cor livre', () => {
+    const { app } = startTwoPlayers();
+    const caio = players.create('Caio', '🦁');
+    click('.menu-btn');
+    clickText('Jogadores', '.row');
+    // azul está livre
+    const addBtns = [...document.querySelectorAll<HTMLButtonElement>('.chip')].filter((b) => b.textContent?.includes('Adicionar'));
+    expect(addBtns.length).toBe(2); // azul e amarelo
+    addBtns[0].click();
+    flushSync();
+    clickText('Caio', '.row');
+    const s = match.state!;
+    expect(s.players.length).toBe(3);
+    expect(s.players.find((p) => p.playerId === caio.id)).toBeTruthy();
     unmount(app);
   });
 });

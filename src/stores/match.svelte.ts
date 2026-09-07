@@ -12,6 +12,8 @@
 import * as engine from '../engine/game';
 import { BASE, type Color, type GameState } from '../engine/types';
 import { settings, vibrate } from './settings.svelte';
+import { history } from './history.svelte';
+import { EMPTY_SLOTS, saveSetup } from './setup.svelte';
 import { sound } from '../lib/sound';
 
 const KEY = 'ludo.match.v1';
@@ -98,6 +100,10 @@ class MatchStore {
     this.toasts = [];
     persist(this.state);
     this.refreshStatus();
+    // lembra a configuração pra "Nova partida" já vir pré-preenchida (vale pra revanche também)
+    const slots = { ...EMPTY_SLOTS };
+    for (const p of cfg.players) slots[p.color] = p.playerId;
+    saveSetup({ mode: cfg.rules.mode, slots, captureBonus: cfg.rules.captureBonus });
   }
 
   clear(): void {
@@ -402,6 +408,8 @@ function persist(s: GameState | null): void {
   } catch {
     /* ignora */
   }
+  // partida acabou: vai pro histórico na hora (mesmo que o app feche durante a animação)
+  if (s && s.turn.phase === 'over') history.add(s);
 }
 
 export const match = new MatchStore();

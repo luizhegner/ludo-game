@@ -12,8 +12,9 @@
 
 <!-- Painel que sobe de baixo, padrão de celular -->
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onClose()} />
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="backdrop" role="presentation" onclick={onClose}>
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_click_events_have_key_events -->
   <div class="sheet" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" onclick={(e) => e.stopPropagation()}>
     <div class="grab"></div>
     <header>
@@ -43,7 +44,9 @@
   }
   .sheet {
     width: 100%;
-    max-height: 86dvh;
+    max-width: 520px;
+    margin: 0 auto;
+    max-height: 90dvh;
     background: var(--panel);
     border-radius: 22px 22px 0 0;
     padding: 6px 16px calc(var(--safe-bottom) + 18px);
@@ -82,7 +85,10 @@
   }
   .content {
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: 6px;
+    min-height: 0;
   }
   @keyframes fade {
     from {

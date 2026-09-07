@@ -230,16 +230,42 @@ Three.js/cannon-es são **camada de apresentação** do dado: entregam um númer
 
 ## 12. Fases de construção
 
-| Fase | Entrega |
-|---|---|
-| **1. Núcleo** | Motor de regras + tabuleiro + peças + dado simples. Partida completa no Clássico, com testes do motor |
-| **2. Interface** | Abas, Jogar, Nova partida (3 passos), Jogadores (cadastro/avatar), Ajustes básicos |
-| **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba |
-| **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) |
-| **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON |
-| **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico |
-| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio |
-| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages |
+| Fase | Entrega | Estado |
+|---|---|---|
+| **1. Núcleo** | Motor de regras + tabuleiro + peças + dado simples. Partida completa no Clássico, com testes do motor | ✅ |
+| **2. Interface** | Abas, Jogar, Nova partida (3 passos), Jogadores (cadastro/avatar), Ajustes básicos | ✅ |
+| **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba | |
+| **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) | Rápido já joga; pausar/remover/substituir/adicionar já existem |
+| **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON | adiantada na fase 2 (ver abaixo) |
+| **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | página Ranking já existe (por vitórias); falta o Elo |
+| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio | |
+| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages | sons e PWA já entraram |
+
+### O que a fase 2 entregou (além do combinado)
+
+Como as páginas Ranking e Histórico fazem parte da barra de abas, ficou mais barato entregá-las funcionando
+do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
+
+- **Navegação:** 5 abas fixas (Jogar · Jogadores · Ranking · Histórico · Ajustes). Telas de detalhe empilham por cima
+  e o **botão/gesto "voltar" do Android fecha a tela de cima** (History API) em vez de fechar o app. Nova partida e
+  Partida são tela cheia (sem abas).
+- **Jogar:** Continuar partida (com a vez de quem é) · Nova partida · Top 3 do modo mais jogado · últimas 3 partidas.
+- **Nova partida em 3 passos:** modo (cards; modos das fases 3/4 aparecem como "em breve") → cores × jogadores
+  (grade 2×2 na disposição do tabuleiro; toca na cor e escolhe/cria no cadastro; mesmo jogador não repete cor) →
+  regras (jogada extra ao comer). **Vem pré-preenchida com a última partida.**
+- **Cadastro de jogadores:** nome (até 16, sem repetir) + avatar **emoji (48 opções) ou foto** da galeria/câmera
+  (recortada no centro, 128×128 JPEG, salva local). Editar e excluir (o histórico mantém o nome da época).
+  Detalhes: partidas, vitórias, % vitória, colocação média, maior sequência, comidas/perdidas, seis, últimas partidas.
+- **Histórico:** lista agrupada por dia; detalhe com resumo, tabela por jogador (⚔ ☠ 6 🎲) e **linha do tempo com
+  horário** (começo, saídas da base, capturas, três 6, chegadas, fim). Revanche com os mesmos · apagar.
+  A partida entra no histórico **no instante em que acaba** (mesmo que o app feche durante a animação).
+- **Ranking (provisório, por vitórias):** seletor de modo + período (semana/mês/ano/tudo). Vira Elo na fase 6 —
+  o histórico completo já está guardado, então o Elo será recalculado retroativamente.
+- **Ajustes:** sons, vibração, mover sozinho, modo do dado (sorteio × física real), **exportar/importar backup JSON**
+  (jogadores + histórico + ajustes), apagar tudo, versão.
+- **Dentro da partida:** menu ⋮ → Jogadores agora usa o cadastro pra adicionar/substituir; fotos aparecem na base.
+- **[padrão]** Fotos não vão pro histórico (viram 🙂 no arquivo); a UI resolve o avatar atual pelo id do jogador.
+  Assim o histórico de 500 partidas cabe folgado no localStorage.
 
 ---
 
