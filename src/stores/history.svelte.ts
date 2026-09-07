@@ -1,18 +1,24 @@
 /**
- * Histórico de partidas encerradas, persistido em localStorage.
+ * Histórico de partidas encerradas.
  *
  * Guarda o GameState completo (com o log) de cada partida — é a fonte da
  * verdade pra estatísticas e, na fase 6, pro Elo. Fotos de avatar são
  * trocadas por um emoji ao arquivar pra não inflar o armazenamento; a UI
  * sempre resolve o avatar atual pelo `playerId` no cadastro.
+ *
+ * Armazenamento: **IndexedDB** (ver lib/idb.ts). A lista em memória é a
+ * fonte da verdade reativa; as escritas no banco são assíncronas e
+ * enfileiradas em ordem. Na primeira abertura, o que existir da versão
+ * antiga em localStorage (`ludo.history.v1`) é migrado e apagado.
  */
 import type { Color, GameState, PlayerSlot } from '../engine/types';
 import { DEFAULT_AVATAR, isPhoto } from '../lib/avatars';
 import { placeOf } from '../lib/stats';
+import { idbClear, idbDelete, idbGetAll, idbPut, idbPutMany, idbReplaceAll } from '../lib/idb';
 
-const KEY = 'ludo.history.v1';
+const LEGACY_KEY = 'ludo.history.v1';
 /** Limite de partidas guardadas (as mais antigas saem). */
-export const HISTORY_MAX = 500;
+export const HISTORY_MAX = 2000;
 
 export interface PlayerHistoryStats {
   games: number;
@@ -45,9 +51,53 @@ export interface Participation {
 class HistoryStore {
   /** Mais recente primeiro. */
   list: GameState[] = $state.raw([]);
+  /** Já carregou do banco? (a UI mostra "carregando" antes disso) */
+  ready = $state(false);
+
+  /** Escritas em ordem: cada operação espera a anterior terminar. */
+  private queue: Promise<unknown> = Promise.resolve();
+  /** Resolve quando a carga inicial terminar (testes / import esperam por isso). */
+  readonly loaded: Promise<void>;
 
   constructor() {
-    this.list = load();
+    this.loaded = this.load();
+  }
+
+  private async load(): Promise<void> {
+    try {
+      const fromDb = await idbGetAll();
+      const legacy = loadLegacy();
+      let list = fromDb;
+      if (legacy.length) {
+        // migração: junta, sem duplicar, e apaga a cópia antiga
+        const ids = new Set(fromDb.map((g) => g.id));
+        const extra = legacy.filter((g) => !ids.has(g.id));
+        list = [...fromDb, ...extra].sort((a, b) => b.updatedAt - a.updatedAt);
+        await idbPutMany(extra);
+        try {
+          localStorage.removeItem(LEGACY_KEY);
+        } catch {
+          /* ignora */
+        }
+      }
+      // não sobrescreve o que foi adicionado enquanto carregava (partida acabou no meio)
+      const ids = new Set(list.map((g) => g.id));
+      const added = this.list.filter((g) => !ids.has(g.id));
+      this.list = [...added, ...list].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, HISTORY_MAX);
+    } catch {
+      /* fica com o que tem em memória */
+    } finally {
+      this.ready = true;
+    }
+  }
+
+  /** Espera todas as escritas pendentes (testes / antes de exportar). */
+  flush(): Promise<void> {
+    return this.loaded.then(() => this.queue).then(() => undefined);
+  }
+
+  private write(op: () => Promise<void>): void {
+    this.queue = this.queue.then(op, op).catch(() => {});
   }
 
   get(id: string): GameState | undefined {
@@ -58,30 +108,44 @@ class HistoryStore {
   add(s: GameState): void {
     if (s.turn.phase !== 'over') return;
     const entry = strip(s);
-    this.list = [entry, ...this.list.filter((g) => g.id !== s.id)]
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, HISTORY_MAX);
-    persist(this.list);
+    const next = [entry, ...this.list.filter((g) => g.id !== s.id)].sort((a, b) => b.updatedAt - a.updatedAt);
+    const dropped = next.slice(HISTORY_MAX);
+    this.list = next.slice(0, HISTORY_MAX);
+    this.write(async () => {
+      await this.loaded;
+      await idbPut(entry);
+      for (const g of dropped) await idbDelete(g.id);
+    });
   }
 
   remove(id: string): void {
     this.list = this.list.filter((g) => g.id !== id);
-    persist(this.list);
+    this.write(async () => {
+      await this.loaded;
+      await idbDelete(id);
+    });
   }
 
   clear(): void {
     this.list = [];
-    persist(this.list);
+    this.write(async () => {
+      await this.loaded;
+      await idbClear();
+    });
   }
 
   /** Substitui tudo (importar backup). */
   replaceAll(list: GameState[]): void {
-    this.list = list
+    const clean = list
       .filter(isValidGame)
       .map(strip)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, HISTORY_MAX);
-    persist(this.list);
+    this.list = clean;
+    this.write(async () => {
+      await this.loaded;
+      await idbReplaceAll(clean);
+    });
   }
 
   /** Partidas de um jogador, da mais recente pra mais antiga. */
@@ -178,9 +242,10 @@ export function isValidGame(g: unknown): g is GameState {
   );
 }
 
-function load(): GameState[] {
+/** Histórico da versão anterior (localStorage), se existir. */
+function loadLegacy(): GameState[] {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(LEGACY_KEY);
     if (raw) {
       const v = JSON.parse(raw);
       if (Array.isArray(v)) return v.filter(isValidGame);
@@ -189,19 +254,6 @@ function load(): GameState[] {
     /* ignora */
   }
   return [];
-}
-
-function persist(list: GameState[]): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {
-    // sem espaço: tenta guardar menos
-    try {
-      localStorage.setItem(KEY, JSON.stringify(list.slice(0, Math.floor(list.length / 2))));
-    } catch {
-      /* desiste */
-    }
-  }
 }
 
 export const history = new HistoryStore();

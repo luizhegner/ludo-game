@@ -75,7 +75,9 @@
     <span class="icon"></span>
   </header>
 
-  {#if !game}
+  {#if !game && !history.ready}
+    <p class="muted" style="text-align:center">Carregando…</p>
+  {:else if !game}
     <div class="card empty">
       <p><b>Partida não encontrada.</b></p>
       <p class="muted">Ela pode ter sido apagada do histórico.</p>

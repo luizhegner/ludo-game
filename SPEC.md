@@ -265,7 +265,7 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
   (jogadores + histórico + ajustes), apagar tudo, versão.
 - **Dentro da partida:** menu ⋮ → Jogadores agora usa o cadastro pra adicionar/substituir; fotos aparecem na base.
 - **[padrão]** Fotos não vão pro histórico (viram 🙂 no arquivo); a UI resolve o avatar atual pelo id do jogador.
-  Assim o histórico de 500 partidas cabe folgado no localStorage.
+  O histórico fica em **IndexedDB** (uma partida completa dá ~80 KB de log; em localStorage caberiam só ~60).
 
 ---
 

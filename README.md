@@ -30,4 +30,4 @@ src/
   ui/          componentes Svelte (páginas, tabuleiro, dado, sheets)
 ```
 
-Chaves no localStorage: `ludo.match.v1`, `ludo.players.v1`, `ludo.history.v1`, `ludo.settings.v1`, `ludo.lastSetup.v2`.
+Chaves no localStorage: `ludo.match.v1`, `ludo.players.v1`, `ludo.settings.v1`, `ludo.lastSetup.v2`. O histórico fica no **IndexedDB** (banco `ludo`, store `games`); uma partida completa tem ~80 KB e o localStorage não daria conta.

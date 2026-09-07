@@ -7,6 +7,7 @@ import { loadSetup, saveSetup, clearSetup } from './setup.svelte';
 import { createGame, DEFAULT_RULES, endGame, move, roll } from '../engine/game';
 import { FINISH, type Color, type GameState } from '../engine/types';
 import { makeBackup, parseBackup } from '../lib/backup';
+import { idbGetAll, idbPutMany, idbReset } from '../lib/idb';
 import { standings, mostPlayedMode, modesPlayed, placeOf, winnerOf } from '../lib/stats';
 import { timelineOf } from '../lib/timeline';
 
@@ -73,7 +74,7 @@ describe('cadastro de jogadores', () => {
 });
 
 describe('histórico', () => {
-  it('só arquiva partidas encerradas, idempotente, mais recente primeiro', () => {
+  it('só arquiva partidas encerradas, idempotente, mais recente primeiro, e grava no IndexedDB', async () => {
     const running = createGame({ rules: DEFAULT_RULES, players: [P('green'), P('red')], seed: 1, now: 5 });
     history.add(running);
     expect(history.list.length).toBe(0);
@@ -84,7 +85,39 @@ describe('histórico', () => {
     history.add(g2);
     history.add(g1);
     expect(history.list.map((g) => g.id)).toEqual([g2.id, g1.id]);
-    expect(JSON.parse(localStorage.getItem('ludo.history.v1')!).length).toBe(2);
+    // nada mais vai pro localStorage
+    expect(localStorage.getItem('ludo.history.v1')).toBeNull();
+    await history.flush();
+    expect((await idbGetAll()).map((g) => g.id)).toEqual([g2.id, g1.id]);
+
+    // remover e limpar também chegam no banco, na ordem
+    history.remove(g2.id);
+    await history.flush();
+    expect((await idbGetAll()).map((g) => g.id)).toEqual([g1.id]);
+    history.clear();
+    await history.flush();
+    expect(await idbGetAll()).toEqual([]);
+  });
+
+  it('migra o histórico antigo do localStorage pro IndexedDB na primeira carga', async () => {
+    // simula a versão anterior: lista salva em localStorage e banco com outra partida
+    const old = finishedGame(['ana', 'bia'], 1000);
+    const inDb = finishedGame(['ana', 'caio'], 2000);
+    localStorage.setItem('ludo.history.v1', JSON.stringify([old]));
+    await idbPutMany([inDb]);
+    await idbReset();
+
+    // nova instância do store (mesma classe), como se o app tivesse aberto de novo
+    const mod = await import('./history.svelte');
+    const Store = Object.getPrototypeOf(mod.history).constructor as new () => typeof mod.history;
+    const fresh = new Store();
+    await fresh.loaded;
+    expect(fresh.ready).toBe(true);
+    expect(fresh.list.map((g) => g.id)).toEqual([inDb.id, old.id]);
+    // cópia antiga apagada e banco com as duas
+    expect(localStorage.getItem('ludo.history.v1')).toBeNull();
+    await fresh.flush();
+    expect((await idbGetAll()).length).toBe(2);
   });
 
   it('troca fotos por emoji ao arquivar', () => {

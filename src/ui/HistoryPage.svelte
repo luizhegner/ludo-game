@@ -34,7 +34,9 @@
     <h1>Histórico</h1>
   </header>
 
-  {#if history.list.length === 0}
+  {#if !history.ready && history.list.length === 0}
+    <p class="muted loading">Carregando…</p>
+  {:else if history.list.length === 0}
     <div class="empty card">
       <div class="big">📜</div>
       <p><b>Nenhuma partida ainda.</b></p>
@@ -99,6 +101,10 @@
     padding: 24px 20px;
     text-align: center;
     margin-top: 20px;
+  }
+  .loading {
+    text-align: center;
+    margin-top: 40px;
   }
   .empty p {
     margin: 4px 0;

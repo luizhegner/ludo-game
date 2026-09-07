@@ -30,9 +30,10 @@
     saveSettings();
   });
 
-  function exportBackup() {
+  async function exportBackup() {
     sound.play('tap');
     try {
+      await history.flush();
       const b = makeBackup($state.snapshot(players.list), history.list, $state.snapshot(settings));
       downloadText(JSON.stringify(b), backupFileName());
       flash('Backup gerado. Guarde o arquivo num lugar seguro.');
