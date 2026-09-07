@@ -24,6 +24,7 @@
   let slots = $state<Record<Color, string | null>>({ ...last.slots });
   let captureBonus = $state(last.captureBonus);
   let disabledPowers = $state<Power[]>([...last.disabledPowers]);
+  let visibleMines = $state(last.visibleMines);
   let picking: Color | null = $state(null);
 
   const enabledCount = $derived(POWER_ORDER.length - disabledPowers.length);
@@ -84,7 +85,7 @@
     if (match.active && !confirm('Tem uma partida em andamento. Começar outra apaga ela. Continuar?')) return;
     sound.play('tap');
     match.start({
-      rules: { mode, captureBonus, ...(info.powers ? { disabledPowers: [...disabledPowers] } : {}) },
+      rules: { mode, captureBonus, ...(info.powers ? { disabledPowers: [...disabledPowers], visibleMines } : {}) },
       players: chosen.map((c) => {
         const p = players.get(slots[c])!;
         return { color: c, playerId: p.id, name: p.name, avatar: p.avatar };
@@ -202,6 +203,15 @@
           <p class="muted small warn">Sem nenhum poder ligado a partida vira um Clássico.</p>
         {/if}
       </div>
+      {#if !disabledPowers.includes('mine')}
+        <div class="card rules">
+          <Toggle
+            label="Minas visíveis"
+            hint="Todo mundo vê onde estão as minas desde o sorteio. Desligado: ficam escondidas até alguém pisar"
+            bind:checked={visibleMines}
+          />
+        </div>
+      {/if}
     {/if}
 
     <ul class="fixed muted">

@@ -97,6 +97,9 @@
       {#if game.rules.captureBonus}
         <div class="muted small">Regra extra: jogada extra ao comer</div>
       {/if}
+      {#if game.rules.visibleMines}
+        <div class="muted small">Regra extra: minas visíveis</div>
+      {/if}
     </section>
 
     <section class="card table">

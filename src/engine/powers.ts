@@ -111,7 +111,7 @@ export const POWER_INFO: Record<Power, PowerInfo> = {
   mine: {
     id: 'mine',
     name: 'Mina',
-    blurb: 'Escondida. Quem parar nela volta pra base; quem passar por cima revela pra todos.',
+    blurb: 'Quem parar nela volta pra base. Fica escondida até alguém passar por cima (ou visível desde o início, se a partida for configurada assim).',
     family: 'blast',
     bad: true,
     weight: 0,
@@ -223,7 +223,15 @@ export function placePowers(s: GameState): number[] {
 
   const added: number[] = [];
   let fi = 0;
-  for (let i = 0; i < newMines && fi < free.length; i++) p.cells.push({ abs: free[fi++], power: 'mine', hidden: true });
+  for (let i = 0; i < newMines && fi < free.length; i++) {
+    const abs = free[fi++];
+    if (s.rules.visibleMines) {
+      p.cells.push({ abs, power: 'mine' });
+      added.push(abs);
+    } else {
+      p.cells.push({ abs, power: 'mine', hidden: true });
+    }
+  }
   for (let i = 0; i < newVisible && fi < free.length && i < pool.length; i++) {
     const abs = free[fi++];
     p.cells.push({ abs, power: pool[i] });

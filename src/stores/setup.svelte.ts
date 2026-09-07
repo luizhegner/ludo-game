@@ -11,6 +11,8 @@ export interface Setup {
   captureBonus: boolean;
   /** Poderes desligados na última partida com poderes. */
   disabledPowers: Power[];
+  /** Minas aparecem no tabuleiro desde o sorteio (em vez de escondidas). */
+  visibleMines: boolean;
 }
 
 const KEY = 'ludo.lastSetup.v2';
@@ -18,7 +20,7 @@ const KEY = 'ludo.lastSetup.v2';
 export const EMPTY_SLOTS: Record<Color, string | null> = { green: null, red: null, blue: null, yellow: null };
 
 export function defaultSetup(): Setup {
-  return { mode: 'classic', slots: { ...EMPTY_SLOTS }, captureBonus: false, disabledPowers: [] };
+  return { mode: 'classic', slots: { ...EMPTY_SLOTS }, captureBonus: false, disabledPowers: [], visibleMines: false };
 }
 
 export function loadSetup(): Setup {
@@ -31,6 +33,7 @@ export function loadSetup(): Setup {
         slots: { ...EMPTY_SLOTS, ...(v.slots ?? {}) },
         captureBonus: !!v.captureBonus,
         disabledPowers: Array.isArray(v.disabledPowers) ? v.disabledPowers.filter((p) => POWERS.includes(p)) : [],
+        visibleMines: !!v.visibleMines,
       };
     }
   } catch {

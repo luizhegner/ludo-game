@@ -155,6 +155,27 @@ describe('casas de poder — sorteio', () => {
     }
   });
 
+  it('minas visíveis: aparecem desde o sorteio e na reposição', () => {
+    let s = game(ALL, { visibleMines: true });
+    const mines = cellsOf(s, 'mine');
+    expect(mines).toHaveLength(MINE_CELLS);
+    expect(mines.every((m) => !m.hidden)).toBe(true);
+    // reposição: 5 casas sem mina → ao pisar numa sobra 4 → repovoa com 2 minas visíveis
+    s = scene(s, { green: [0, BASE, BASE, BASE] }, [{ abs: 3, power: 'shield' }, { abs: 40, power: 'bomb' }, { abs: 41, power: 'bomb' }, { abs: 42, power: 'spring' }, { abs: 43, power: 'spring' }], { pad: false });
+    s = play(s, 3, 0);
+    const after = cellsOf(s, 'mine');
+    expect(after).toHaveLength(MINE_CELLS);
+    expect(after.every((m) => !m.hidden)).toBe(true);
+    const rep = events(s, 'repopulate')[0] as { rings: number[] };
+    expect(rep.rings).toHaveLength(TOTAL_CELLS - 4); // as minas contam como casas visíveis novas
+    // e continua explodindo igual
+    const m = after[0];
+    s = scene(s, { green: [0, BASE, BASE, BASE] }, [{ abs: 3, power: 'mine' }], { turn: 'green' });
+    void m;
+    s = play(s, 3, 0);
+    expect(s.pieces.green[0]).toBe(BASE);
+  });
+
   it('poderes desligados nunca são sorteados; minas desligadas = 10 visíveis', () => {
     const off: Power[] = ['shield', 'rocket', 'spring', 'mine'];
     for (let seed = 1; seed <= 50; seed++) {
@@ -511,14 +532,20 @@ describe('🚀 foguete', () => {
     expect(s.pieces.green[0]).toBe(2);
   });
 
-  it('entra na reta final e para no centro se exceder', () => {
+  it('entra na reta final e para no centro se exceder (e chegar dá jogada extra)', () => {
     let s = game(['green', 'red']);
     s = scene(s, { green: [HOME_START - 6, BASE, BASE, BASE] }, [{ abs: HOME_START - 4, power: 'rocket' }]);
     s = play(s, 2, 0);
     const fly = events(s, 'fly')[0] as { to: number; n: number };
     expect(fly.to).toBe(Math.min(HOME_START - 4 + fly.n, FINISH));
     expect(s.pieces.green[0]).toBe(fly.to);
-    if (fly.to === FINISH) expect(events(s, 'finish')).toHaveLength(1);
+    if (fly.to === FINISH) {
+      expect(events(s, 'finish')).toHaveLength(1);
+      expect(s.turn.color).toBe('green');
+      expect(s.turn.phase).toBe('roll');
+    } else {
+      expect(s.turn.color).toBe('red');
+    }
   });
 
   it('encadeia: pousar em outra casa de poder ativa de novo', () => {
