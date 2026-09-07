@@ -53,6 +53,16 @@ body {
   flex-direction: column;
 }
 
+/* tema Aurora: o fundo animado (Backdrop) aparece por trás; cards ficam levemente translúcidos */
+html[data-theme='aurora'],
+html[data-theme='aurora'] body {
+  background: transparent;
+}
+html[data-theme='aurora'] {
+  --panel: rgba(255, 255, 255, 0.82);
+  --line: rgba(31, 36, 48, 0.1);
+}
+
 button {
   font: inherit;
   color: inherit;

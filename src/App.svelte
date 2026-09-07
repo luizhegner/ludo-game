@@ -9,8 +9,15 @@
   import MatchDetail from './ui/MatchDetail.svelte';
   import SettingsPage from './ui/SettingsPage.svelte';
   import TabBar from './ui/TabBar.svelte';
+  import Backdrop from './ui/Backdrop.svelte';
   import { match } from './stores/match.svelte';
   import { nav } from './stores/nav.svelte';
+  import { settings } from './stores/settings.svelte';
+
+  // tema no <html>, pra o CSS global (fundo do body, cards translúcidos) reagir
+  $effect(() => {
+    document.documentElement.dataset.theme = settings.theme;
+  });
 
   // se o app abriu no meio de uma partida, vai direto pra ela
   if (match.active && nav.route.page !== 'game') nav.go({ page: 'game' });
@@ -28,6 +35,8 @@
     nav.switchTab('home');
   }
 </script>
+
+<Backdrop />
 
 <div class="shell" class:with-tabs={!nav.fullscreen}>
   {#if route.page === 'home'}
