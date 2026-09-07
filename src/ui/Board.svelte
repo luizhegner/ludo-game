@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { COLORS, type Color, type GameState, type Power } from '../engine/types';
+  import { COLORS, FINISH, type Color, type GameState, type Power } from '../engine/types';
   import {
     BASE_ORIGIN,
     BASE_SLOTS,
@@ -50,6 +50,9 @@
     onPowerRelease,
     overlay,
   }: Props = $props();
+
+  /** Peças que já chegaram são desenhadas menores, pra caberem no triângulo da cor. */
+  const FINISH_SCALE = 0.72;
 
   let el: HTMLDivElement | undefined = $state();
   let size = $state(360);
@@ -128,7 +131,18 @@
    * espalhadas levemente e encolhidas pra continuarem visíveis.
    */
   const pawns = $derived.by(() => {
-    type P = { color: Color; index: number; x: number; y: number; scale: number; key: string; moving?: boolean; flying?: boolean };
+    type P = {
+      color: Color;
+      index: number;
+      x: number;
+      y: number;
+      scale: number;
+      key: string;
+      moving?: boolean;
+      flying?: boolean;
+      flyKind?: 'rocket' | 'spring' | 'back';
+      flyStep?: number;
+    };
     const groups = new Map<string, P[]>();
     for (const color of COLORS) {
       if (!present.has(color)) continue;
@@ -136,7 +150,7 @@
         if (moving && moving.color === color && moving.piece === index) return; // desenhada à parte
         const c = cellOf(color, pos, index);
         const k = pos === -1 ? `${color}-base-${index}` : `${c.x},${c.y}`;
-        const p: P = { color, index, x: c.x, y: c.y, scale: 1, key: `${color}-${index}` };
+        const p: P = { color, index, x: c.x, y: c.y, scale: pos === FINISH ? FINISH_SCALE : 1, key: `${color}-${index}` };
         const g = groups.get(k) ?? [];
         g.push(p);
         groups.set(k, g);
@@ -161,15 +175,18 @@
     // peça em movimento sempre por último (acima de todas), na casa atual da animação
     if (moving) {
       const c = cellOf(moving.color, moving.pos, moving.piece);
+      const scale = moving.pos === FINISH ? FINISH_SCALE : 1;
       out.push({
         color: moving.color,
         index: moving.piece,
         x: c.x,
         y: c.y,
-        scale: 1,
+        scale,
         key: `${moving.color}-${moving.piece}`,
         moving: !moving.flying,
         flying: !!moving.flying,
+        flyKind: moving.flyKind,
+        flyStep: moving.step,
       });
     }
     return out;
@@ -191,6 +208,41 @@
     { color: 'blue', x: 14.5, y: 7.5, rot: 180 },
     { color: 'yellow', x: 7.5, y: 14.5, rot: 270 },
   ];
+
+  /**
+   * Contorno do brilho da vez: segue a forma real da base — o canto que
+   * encosta na borda do tabuleiro é arredondado (concêntrico ao raio do
+   * tabuleiro), os outros três são retos com um raio pequeno só pra não
+   * ficarem pontudos. Tudo em unidades de célula.
+   */
+  function baseOutline(color: Color, inset: number): string {
+    const o = BASE_ORIGIN[color];
+    const x0 = o.col + inset;
+    const y0 = o.row + inset;
+    const x1 = o.col + 6 - inset;
+    const y1 = o.row + 6 - inset;
+    // raio do tabuleiro (14px) em células, menos o recuo → canto externo concêntrico
+    const R = Math.max(0.35, (14 / size) * 15 - inset);
+    const r = 0.22; // cantos internos
+    // qual canto é o externo: verde ↖, vermelho ↗, azul ↘, amarelo ↙
+    const rr = { tl: r, tr: r, br: r, bl: r };
+    if (color === 'green') rr.tl = R;
+    else if (color === 'red') rr.tr = R;
+    else if (color === 'blue') rr.br = R;
+    else rr.bl = R;
+    return [
+      `M${x0 + rr.tl},${y0}`,
+      `H${x1 - rr.tr}`,
+      `A${rr.tr},${rr.tr} 0 0 1 ${x1},${y0 + rr.tr}`,
+      `V${y1 - rr.br}`,
+      `A${rr.br},${rr.br} 0 0 1 ${x1 - rr.br},${y1}`,
+      `H${x0 + rr.bl}`,
+      `A${rr.bl},${rr.bl} 0 0 1 ${x0},${y1 - rr.bl}`,
+      `V${y0 + rr.tl}`,
+      `A${rr.tl},${rr.tl} 0 0 1 ${x0 + rr.tl},${y0}`,
+      'Z',
+    ].join(' ');
+  }
 
   const ringColorOf = (abs: number): Color | null => {
     for (const c of COLORS) if (START_OFFSET[c] === abs) return c;
@@ -298,17 +350,7 @@
       <g class="base" class:empty={!active}>
         <rect x={o.col} y={o.row} width="6" height="6" fill={COLOR_HEX[k]} />
         {#if isTurn}
-          <rect
-            class="turn-glow"
-            x={o.col + 0.18}
-            y={o.row + 0.18}
-            width="5.64"
-            height="5.64"
-            rx="0.5"
-            fill="none"
-            stroke="#fff"
-            stroke-width="0.16"
-          />
+          <path class="turn-glow" d={baseOutline(k, 0.2)} fill="none" stroke="#fff" stroke-width="0.16" stroke-linejoin="round" />
         {/if}
         <rect x={o.col + 0.9} y={o.row + 0.9} width="4.2" height="4.2" rx="0.35" fill="#fff" filter="url(#soft)" opacity={active ? 1 : 0.55} />
         {#each BASE_SLOTS as s}
@@ -386,6 +428,8 @@
         dim={!moving && game.turn.phase === 'move' && p.color === turn && !legal.includes(p.index) && isRing(game.pieces[p.color][p.index])}
         moving={!!p.moving}
         flying={!!p.flying}
+        flyKind={p.flyKind}
+        flyStep={p.flyStep}
         home={goingHome.includes(p.key)}
         shield={fx?.shield}
         fire={fx?.fire}
