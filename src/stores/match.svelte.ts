@@ -12,7 +12,7 @@
 import * as engine from '../engine/game';
 import { toAbsolute } from '../engine/board';
 import { BASE, type Color, type GameState, type Power } from '../engine/types';
-import { settings, vibrate } from './settings.svelte';
+import { settings, haptic, type Haptic } from './settings.svelte';
 import { history } from './history.svelte';
 import { EMPTY_SLOTS, loadSetup, saveSetup } from './setup.svelte';
 import { sound, type SoundName } from '../lib/sound';
@@ -34,8 +34,14 @@ export const TIMING = {
   autoMove: 350,
   /** Voo de volta pra base (peça comida / penalidade). */
   home: 550,
-  /** Voo de foguete/mola (uma parábola só, independente da distância). */
+  /** Voo de mola / volta por escudo (uma parábola só). */
   fly: 700,
+  /** Foguete: tremor + decolagem antes de sair do chão. */
+  liftoff: 520,
+  /** Foguete: voo até o destino. */
+  rocket: 750,
+  /** Foguete: pouso caótico (quique + inclinação) até assentar. */
+  landing: 650,
   /** Pausa na casa de poder antes de mostrar o efeito. */
   power: 350,
   /** Explicação do poder fica na tela depois de soltar o dedo. */
@@ -61,6 +67,8 @@ export interface Moving {
   step: number;
   /** Voo (foguete/mola): desenhada em arco em vez de casa a casa. */
   flying?: boolean;
+  /** Que tipo de voo: foguete (decola, voa e aterrissa), mola (salto) ou volta (escudo). */
+  flyKind?: 'rocket' | 'spring' | 'back';
 }
 
 class MatchStore {
@@ -115,11 +123,13 @@ class MatchStore {
     // lembra a configuração pra "Nova partida" já vir pré-preenchida (vale pra revanche também)
     const slots = { ...EMPTY_SLOTS };
     for (const p of cfg.players) slots[p.color] = p.playerId;
+    const prev = loadSetup();
     saveSetup({
       mode: cfg.rules.mode,
       slots,
       captureBonus: cfg.rules.captureBonus,
-      disabledPowers: cfg.rules.disabledPowers ?? loadSetup().disabledPowers,
+      disabledPowers: cfg.rules.disabledPowers ?? prev.disabledPowers,
+      visibleMines: cfg.rules.visibleMines ?? prev.visibleMines,
     });
   }
 
@@ -141,14 +151,19 @@ class MatchStore {
     this.rolling = true;
     this.rollingValue = value;
     sound.play('dice');
+    haptic('diceStart');
 
     this.later(() => {
       this.rolling = false;
       this.diceFace = value;
       this.rollingValue = null;
       sound.play('diceLand');
+      haptic('diceLand');
       if (after.turn.mult) sound.play('multiplier');
-      else if (value === 6) sound.play('six');
+      else if (value === 6) {
+        sound.play('six');
+        haptic('six');
+      }
 
       const passes = after.turn.color !== before.turn.color || after.turn.phase === 'over';
       const noPlay = after.turn.phase !== 'move';
@@ -199,22 +214,23 @@ class MatchStore {
     const from = before.pieces[color][piece];
     const fresh = after.log.slice(before.log.length);
 
-    // trechos: [de, até, voo?]
-    const legs: { from: number; to: number; fly: boolean }[] = [];
+    // trechos: [de, até, tipo de voo]
+    type Leg = { from: number; to: number; fly?: 'rocket' | 'spring' | 'back' };
+    const legs: Leg[] = [];
     let cur = from;
     for (const e of fresh) {
       if (e.type === 'move' && e.color === color && e.piece === piece) {
-        legs.push({ from: cur, to: e.to, fly: false });
+        legs.push({ from: cur, to: e.to });
         cur = e.to;
       } else if (e.type === 'fly' && e.color === color && e.piece === piece) {
-        legs.push({ from: cur, to: e.to, fly: true });
+        legs.push({ from: cur, to: e.to, fly: e.power });
         cur = e.to;
       } else if (e.type === 'shieldBlock' && e.attacker === color && e.piece === piece) {
-        legs.push({ from: cur, to: e.back, fly: true });
+        legs.push({ from: cur, to: e.back, fly: 'back' });
         cur = e.back;
       }
     }
-    if (!legs.length) legs.push({ from, to: after.pieces[color][piece], fly: false });
+    if (!legs.length) legs.push({ from, to: after.pieces[color][piece] });
 
     // posições (relativas) onde a peça pisou em casa de poder, pra pausar ali
     const powerStops = new Set(
@@ -233,11 +249,35 @@ class MatchStore {
       const leg = legs[i++];
       const pause = isPowerStop(leg.to) ? TIMING.power : 40;
 
-      if (leg.fly) {
-        this.moving = { color, piece, pos: leg.from, to: leg.to, step: 0, flying: true };
-        sound.play(leg.to < leg.from ? 'shield' : 'fly');
+      if (leg.fly === 'rocket') {
+        // 1) tremor + decolagem no lugar  2) voo até o destino  3) pouso caótico
+        this.moving = { color, piece, pos: leg.from, to: leg.to, step: 0, flying: true, flyKind: 'rocket' };
+        sound.play('fly');
+        haptic('fly');
         this.later(() => {
-          this.moving = { color, piece, pos: leg.to, to: leg.to, step: 1, flying: true };
+          this.moving = { color, piece, pos: leg.to, to: leg.to, step: 1, flying: true, flyKind: 'rocket' };
+          this.later(() => {
+            this.moving = { color, piece, pos: leg.to, to: leg.to, step: 2, flying: true, flyKind: 'rocket' };
+            sound.play('landing');
+            haptic('landing');
+            this.later(runLeg, TIMING.landing + pause);
+          }, TIMING.rocket);
+        }, TIMING.liftoff);
+        return;
+      }
+
+      if (leg.fly) {
+        // mola: agacha e salta; volta por escudo: arco de volta
+        this.moving = { color, piece, pos: leg.from, to: leg.to, step: 0, flying: true, flyKind: leg.fly };
+        if (leg.fly === 'back') {
+          sound.play('shield');
+          haptic('shield');
+        } else {
+          sound.play('spring');
+          haptic('fly');
+        }
+        this.later(() => {
+          this.moving = { color, piece, pos: leg.to, to: leg.to, step: 1, flying: true, flyKind: leg.fly };
           this.later(runLeg, TIMING.fly + pause);
         }, 20);
         return;
@@ -247,6 +287,7 @@ class MatchStore {
         // salto único da base pra casa de saída
         this.moving = { color, piece, pos: leg.from, to: leg.to, step: 0 };
         sound.play('out');
+        haptic('out');
         this.later(() => {
           this.moving = { color, piece, pos: leg.to, to: leg.to, step: 1 };
           this.later(runLeg, pause);
@@ -263,6 +304,7 @@ class MatchStore {
         }
         this.moving = { ...m, pos: m.pos + 1, step: m.step + 1 };
         sound.play('step');
+        haptic('step');
         this.later(advance, TIMING.step);
       };
       this.later(advance, 0);
@@ -348,7 +390,10 @@ class MatchStore {
 
   private afterMove(s: GameState): void {
     // depois de mover, ou o jogador rola de novo, ou escolhe o número (dado personalizável)
-    if (s.turn.phase === 'pick') sound.play('magicDice');
+    if (s.turn.phase === 'pick') {
+      sound.play('magicDice');
+      haptic('power');
+    }
   }
 
   /**
@@ -388,43 +433,46 @@ class MatchStore {
         this.toast(pw.text, pw.color);
         const snd = POWER_SOUND[e.type];
         if (snd) sound.play(snd);
-        if (e.type === 'boom' || (e.type === 'capture' && e.how)) vibrate([30, 40, 60]);
+        const hp = POWER_HAPTIC[e.type];
+        if (hp) haptic(hp);
         continue;
       }
       switch (e.type) {
         case 'capture':
           this.toast(`${name(e.by)} comeu ${name(e.victim)}!`, e.by);
           sound.play('capture');
-          vibrate([30, 40, 60]);
+          haptic('capture');
           break;
         case 'threeSixes':
           this.toast(`Três 6 seguidos! ${name(e.color)} perde a vez`, e.color);
           sound.play('threeSixes');
-          vibrate(80);
+          haptic('threeSixes');
           break;
-        case 'finish':
-          this.toast(`${name(e.color)} colocou uma peça no centro`, e.color);
+        case 'finish': {
+          // quem terminou as 4 peças não joga de novo (sai da rodada)
+          const done = fresh.some((x) => x.type === 'playerDone' && x.color === e.color);
+          this.toast(`${name(e.color)} colocou uma peça no centro${done ? '' : ' — joga de novo'}`, e.color);
           sound.play('finish');
-          vibrate(40);
+          haptic('finish');
           break;
+        }
         case 'playerDone':
           this.toast(`🏁 ${name(e.color)} terminou em ${e.place}º!`, e.color);
           sound.play('playerDone');
-          vibrate([40, 40, 40, 40, 120]);
+          haptic('playerDone');
           break;
         case 'noMoves':
           this.toast(`${name(e.color)}: ${e.value} — sem jogadas`, e.color);
           sound.play('noMoves');
+          haptic('noMoves');
           break;
         case 'gameOver':
           sound.play('victory');
-          vibrate([60, 60, 60, 60, 200]);
+          haptic('victory');
           break;
         case 'turn':
           sound.play('turn');
-          break;
-        case 'roll':
-          if (e.value === 6) vibrate(20);
+          haptic('turn');
           break;
       }
     }
@@ -496,6 +544,17 @@ const POWER_SOUND: Partial<Record<GameState['log'][number]['type'], SoundName>> 
   repopulate: 'repopulate',
   capture: 'capture',
   pick: 'tap',
+};
+
+/** Vibração pra cada evento de poder. */
+const POWER_HAPTIC: Partial<Record<GameState['log'][number]['type'], Haptic>> = {
+  power: 'power',
+  shieldBreak: 'shield',
+  boom: 'boom',
+  mineRevealed: 'mine',
+  mineDetonated: 'boom',
+  capture: 'capture',
+  pick: 'pick',
 };
 
 function rolledValue(before: GameState, after: GameState): number {

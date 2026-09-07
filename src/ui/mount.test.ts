@@ -330,7 +330,7 @@ describe('modo Poderes pela UI', () => {
     unmount(app);
   });
 
-  it('foguete: a peça voa num arco só e o toast conta as casas', () => {
+  it('foguete: decola, voa e pousa em três atos; o toast conta as casas', () => {
     const app = startPowers();
     const color = match.state!.turn.color;
     // arma o cenário: peça 0 na casa 0, foguete na casa relativa 3 (absoluta pra cor)
@@ -342,12 +342,23 @@ describe('modo Poderes pela UI', () => {
     tick(TIMING.dice + TIMING.autoMove + 10);
     // anda 3 casas
     tick(TIMING.step * 3 + 10);
-    // pausa na casa de poder, depois voa
+    // pausa na casa de poder, depois decola no lugar (tremor + chama)
     tick(TIMING.power + 100);
     expect(match.moving).not.toBeNull();
     expect(match.moving!.flying).toBe(true);
-    expect(document.querySelector('.pawn.flying')).toBeTruthy();
-    tick(TIMING.fly + 200);
+    expect(match.moving!.flyKind).toBe('rocket');
+    expect(match.moving!.step).toBe(0);
+    expect(document.querySelector('.pawn.liftoff .exhaust')).toBeTruthy();
+    // voo até o destino
+    tick(TIMING.liftoff);
+    expect(match.moving!.step).toBe(1);
+    expect(document.querySelector('.pawn.cruise')).toBeTruthy();
+    // pouso caótico
+    tick(TIMING.rocket);
+    expect(match.moving!.step).toBe(2);
+    expect(document.querySelector('.pawn.landing')).toBeTruthy();
+    expect(document.querySelector('.exhaust')).toBeNull();
+    tick(TIMING.landing + 200);
     expect(match.moving).toBeNull();
     const after = match.state!;
     const fly = after.log.find((e) => e.type === 'fly') as { n: number; to: number } | undefined;
@@ -402,7 +413,7 @@ describe('modo Poderes pela UI', () => {
         flushSync();
         continue;
       }
-      tick(TIMING.step * 7 + TIMING.fly + TIMING.power + TIMING.home);
+      tick(TIMING.step * 7 + TIMING.liftoff + TIMING.rocket + TIMING.landing + TIMING.power + TIMING.home);
     }
     expect(document.querySelector('.podium')).toBeTruthy();
     const g = history.list[0];

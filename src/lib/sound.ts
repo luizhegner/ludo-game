@@ -31,7 +31,9 @@ export type SoundName =
   | 'mine'
   | 'magicDice'
   | 'multiplier'
-  | 'repopulate';
+  | 'repopulate'
+  | 'landing'
+  | 'spring';
 
 /** Nome do arquivo (sem extensão) em public/sounds/ pra cada som. */
 export const SOUND_FILES: Record<SoundName, string> = {
@@ -56,6 +58,8 @@ export const SOUND_FILES: Record<SoundName, string> = {
   magicDice: 'magic-dice',
   multiplier: 'multiplier',
   repopulate: 'repopulate',
+  landing: 'landing',
+  spring: 'spring',
 };
 
 const EXTENSIONS = ['mp3', 'ogg'] as const;
@@ -130,7 +134,7 @@ function noise(
 }
 
 // ---------------------------------------------------------------------------
-// Os 21 sons sintetizados
+// Os 23 sons sintetizados
 // ---------------------------------------------------------------------------
 
 const SYNTH: Record<SoundName, Synth> = {
@@ -230,11 +234,25 @@ const SYNTH: Record<SoundName, Synth> = {
     tone(ctx, out, t0, { freq: 1319, dur: 0.3, type: 'sine', gain: 0.18, delay: 0.09 });
     noise(ctx, out, t0, { dur: 0.12, gain: 0.05, freq: 5000, q: 1, delay: 0.09 });
   },
-  // foguete/mola: "whoosh" subindo com sopro
+  // foguete: chiado de ignição crescendo, depois o "whoosh" da decolagem
   fly: (ctx, out, t0) => {
-    noise(ctx, out, t0, { dur: 0.55, gain: 0.25, freq: 900, q: 0.6, type: 'bandpass' });
-    tone(ctx, out, t0, { freq: 200, to: 1400, dur: 0.5, type: 'sawtooth', gain: 0.08 });
-    tone(ctx, out, t0, { freq: 1400, to: 900, dur: 0.15, type: 'sine', gain: 0.12, delay: 0.5 });
+    noise(ctx, out, t0, { dur: 0.5, gain: 0.12, freq: 400, q: 0.5, type: 'lowpass' });
+    tone(ctx, out, t0, { freq: 60, to: 140, dur: 0.5, type: 'sawtooth', gain: 0.08 });
+    noise(ctx, out, t0, { dur: 0.7, gain: 0.28, freq: 1100, q: 0.6, type: 'bandpass', delay: 0.45 });
+    tone(ctx, out, t0, { freq: 180, to: 1600, dur: 0.7, type: 'sawtooth', gain: 0.07, delay: 0.45 });
+  },
+  // foguete pousando: baque + dois quiques menores
+  landing: (ctx, out, t0) => {
+    noise(ctx, out, t0, { dur: 0.1, gain: 0.3, freq: 600, q: 0.8, type: 'lowpass' });
+    tone(ctx, out, t0, { freq: 260, to: 90, dur: 0.16, type: 'triangle', gain: 0.32 });
+    tone(ctx, out, t0, { freq: 300, to: 120, dur: 0.1, type: 'triangle', gain: 0.18, delay: 0.24 });
+    tone(ctx, out, t0, { freq: 340, to: 150, dur: 0.07, type: 'triangle', gain: 0.1, delay: 0.42 });
+  },
+  // mola: "boing" — mola comprimindo e soltando
+  spring: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 220, to: 120, dur: 0.12, type: 'triangle', gain: 0.2 });
+    tone(ctx, out, t0, { freq: 150, to: 900, dur: 0.3, type: 'square', gain: 0.07, delay: 0.1 });
+    tone(ctx, out, t0, { freq: 900, to: 600, dur: 0.25, type: 'sine', gain: 0.12, delay: 0.38 });
   },
   // escudo absorvendo: "clang" metálico curto
   shield: (ctx, out, t0) => {
