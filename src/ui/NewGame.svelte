@@ -3,6 +3,8 @@
   import { COLOR_HEX, COLOR_NAME, COLOR_ON } from '../lib/colors';
   import { MODES, MODE_BY_ID } from '../lib/modes';
   import { POWER_ICON, POWER_ORDER, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
+  import { powerIconUrl } from '../lib/art.svelte';
+  import Icon from './Icon.svelte';
   import { sound } from '../lib/sound';
   import { match } from '../stores/match.svelte';
   import { players, type Player } from '../stores/players.svelte';
@@ -191,7 +193,7 @@
         {#each POWER_ORDER as p (p)}
           {@const on = !disabledPowers.includes(p)}
           <button class="prow" class:off={!on} onclick={() => togglePower(p)} aria-pressed={on} style="--bg:{powerBg(p)}; --bd:{powerBorder(p)}">
-            <span class="picon">{POWER_ICON[p]}</span>
+            <span class="picon"><Icon src={powerIconUrl(p)} fallback={POWER_ICON[p]} size={24} /></span>
             <span class="ptxt">
               <span class="pname">{powerName(p)}</span>
               <span class="muted small">{powerBlurb(p)}</span>
@@ -524,7 +526,6 @@
     place-items: center;
     background: var(--bg);
     border: 2px solid var(--bd);
-    font-size: 18px;
     flex: none;
   }
   .prow.off .picon {

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { nav, type Tab } from '../stores/nav.svelte';
   import { sound } from '../lib/sound';
+  import { uiIconUrl } from '../lib/art.svelte';
+  import Icon from './Icon.svelte';
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'home', label: 'Jogar', icon: '🎲' },
@@ -19,7 +21,7 @@
 <nav class="tabbar" aria-label="Seções">
   {#each tabs as t (t.id)}
     <button class="tab" class:on={nav.tab === t.id} onclick={() => pick(t.id)} aria-current={nav.tab === t.id ? 'page' : undefined}>
-      <span class="ic" aria-hidden="true">{t.icon}</span>
+      <span class="ic" aria-hidden="true"><Icon src={uiIconUrl(`tab-${t.id}`)} fallback={t.icon} size={24} /></span>
       <span class="lb">{t.label}</span>
     </button>
   {/each}
@@ -58,8 +60,8 @@
     background: var(--bg);
   }
   .ic {
-    font-size: 22px;
-    line-height: 1;
+    display: grid;
+    place-items: center;
     filter: grayscale(1) opacity(0.75);
     transition: filter 0.15s, transform 0.15s;
   }

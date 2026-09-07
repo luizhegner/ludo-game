@@ -4,6 +4,8 @@
   import { COLOR_HEX, COLOR_NAME } from '../lib/colors';
   import { modeName } from '../lib/modes';
   import { POWER_ICON, POWER_ORDER, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
+  import { powerIconUrl } from '../lib/art.svelte';
+  import Icon from './Icon.svelte';
   import { enabledPowers, hasPowers } from '../engine/powers';
   import { COLORS, type Color } from '../engine/types';
   import { playerOf } from '../engine/game';
@@ -132,7 +134,7 @@
             {#each POWER_ORDER as p (p)}
               {@const on = powersOn.has(p)}
               <div class="prow" class:off={!on} style="--bg:{powerBg(p)}; --bd:{powerBorder(p)}">
-                <span class="picon">{POWER_ICON[p]}</span>
+                <span class="picon"><Icon src={powerIconUrl(p)} fallback={POWER_ICON[p]} size={24} /></span>
                 <div class="ptxt">
                   <b>{powerName(p)}{on ? '' : ' — desligado'}</b>
                   <div class="muted small">{powerBlurb(p)}</div>
@@ -246,9 +248,9 @@
     opacity: 0.55;
   }
   .prow .picon {
-    font-size: 22px;
     width: 30px;
-    text-align: center;
+    display: grid;
+    place-items: center;
     flex: none;
   }
   .prow .ptxt {

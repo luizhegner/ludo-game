@@ -17,6 +17,7 @@
   import { destination, playerOf, progress } from '../engine/game';
   import { peekEffects } from '../engine/powers';
   import { POWER_ICON, powerBg, powerBorder } from '../lib/powers';
+  import { powerIconUrl } from '../lib/art.svelte';
   import { players as roster } from '../stores/players.svelte';
   import Pawn from './Pawn.svelte';
   import type { Moving } from '../stores/match.svelte';
@@ -74,7 +75,7 @@
   const powerCells = $derived(
     (game.powers?.cells ?? [])
       .filter((c) => !c.hidden)
-      .map((c) => ({ ...c, cell: RING_CELLS[c.abs] })),
+      .map((c) => ({ ...c, cell: RING_CELLS[c.abs], art: powerIconUrl(c.power) })),
   );
 
   // segurar o dedo numa casa de poder → explicação na área de status
@@ -323,9 +324,14 @@
           stroke={powerBorder(pc.power)}
           stroke-width="0.05"
         />
-        <text x={pc.cell.col + 0.5} y={pc.cell.row + 0.5} text-anchor="middle" dominant-baseline="central" font-size={pc.power === 'x2' || pc.power === 'x3' ? 0.42 : 0.56} font-weight="800" fill="#1f2430">
-          {pc.power === 'x2' ? '×2' : pc.power === 'x3' ? '×3' : POWER_ICON[pc.power]}
-        </text>
+        {#if pc.art}
+          <!-- arte própria: quadrado de 0,7 célula, centrado, sem esticar -->
+          <image href={pc.art} x={pc.cell.col + 0.15} y={pc.cell.row + 0.15} width="0.7" height="0.7" preserveAspectRatio="xMidYMid meet" pointer-events="none" />
+        {:else}
+          <text x={pc.cell.col + 0.5} y={pc.cell.row + 0.5} text-anchor="middle" dominant-baseline="central" font-size={pc.power === 'x2' || pc.power === 'x3' ? 0.42 : 0.56} font-weight="800" fill="#1f2430">
+            {pc.power === 'x2' ? '×2' : pc.power === 'x3' ? '×3' : POWER_ICON[pc.power]}
+          </text>
+        {/if}
       </g>
     {/each}
 

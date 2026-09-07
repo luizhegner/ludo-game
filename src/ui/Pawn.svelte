@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Color } from '../engine/types';
   import { COLOR_DARK } from '../lib/colors';
+  import { fxSprite } from '../lib/art.svelte';
+  import Sprite from './Sprite.svelte';
 
   interface Props {
     color: Color;
@@ -46,6 +48,11 @@
     mult,
     onclick,
   }: Props = $props();
+
+  // sprites opcionais (src/assets/art/fx/): quando existem, substituem o desenho padrão
+  const fireFx = $derived(fire ? fxSprite('fire') : null);
+  const shieldFx = $derived(shield ? fxSprite('shield') : null);
+  const freezeFx = $derived(frozen ? fxSprite('freeze') : null);
 </script>
 
 <!--
@@ -77,11 +84,15 @@
     <circle r="0.62" cy="0.08" fill="#fff" opacity="0.001" />
   {/if}
   <ellipse class="shadow" cx="0" cy="0.36" rx="0.36" ry="0.13" fill="#000" opacity="0.32" />
-  {#if fire}
+  {#if fire && !fireFx}
     <g class="fire">
       <ellipse cx="0" cy="0.1" rx="0.42" ry="0.5" fill="#ff9800" opacity="0.35" />
       <ellipse cx="0" cy="0.05" rx="0.3" ry="0.4" fill="#ffeb3b" opacity="0.45" />
     </g>
+  {/if}
+  {#if shieldFx}
+    <!-- escudo animado atrás do peão (1,2 célula, centrado no corpo) -->
+    <Sprite sprite={shieldFx} x={0} y={-0.02} size={1.2} />
   {/if}
   <g class="body">
   {#if flying && flyKind === 'rocket' && flyStep < 2}
@@ -103,10 +114,16 @@
   <circle cx="0" cy="-0.26" r="0.2" fill="url(#g-{color})" stroke={COLOR_DARK[color]} stroke-width="0.04" />
   <ellipse cx="-0.07" cy="-0.32" rx="0.07" ry="0.05" fill="#fff" opacity="0.8" />
   </g>
-  {#if shield}
+  {#if fireFx}
+    <!-- fogo animado por cima do peão: quadro de 1,1 célula, base alinhada aos pés -->
+    <Sprite sprite={fireFx} x={0} y={-0.2} size={1.1} />
+  {/if}
+  {#if shield && !shieldFx}
     <circle class="shield" r="0.5" cy="0" fill="rgba(74,144,217,0.15)" stroke="#4a90d9" stroke-width="0.07" />
   {/if}
-  {#if frozen}
+  {#if freezeFx}
+    <Sprite sprite={freezeFx} x={0} y={-0.05} size={1.1} />
+  {:else if frozen}
     <g class="ice">
       <rect x="-0.4" y="-0.5" width="0.8" height="0.9" rx="0.18" fill="rgba(180,225,255,0.55)" stroke="#7cc4ff" stroke-width="0.05" />
       <text y="0.12" text-anchor="middle" font-size="0.36">❄️</text>
@@ -118,7 +135,7 @@
       <text x="0.3" y="-0.35" text-anchor="middle" font-size="0.24" font-weight="800" fill="#fff">×{mult}</text>
     </g>
   {/if}
-  {#if fire}
+  {#if fire && !fireFx}
     <text class="flame" y="-0.55" text-anchor="middle" font-size="0.4">🔥</text>
   {/if}
 </g>

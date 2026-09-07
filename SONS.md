@@ -5,6 +5,8 @@ Se você quiser trocar por samples de verdade, basta colocar o arquivo em
 `public/sounds/<arquivo>.mp3` (ou `.ogg`) com o nome exato da tabela — o jogo
 detecta sozinho e usa o sample no lugar do sintetizado. Não precisa mexer em código.
 
+(Ícones e efeitos animados: ver `ARTE.md`.)
+
 Regras práticas:
 
 - Formato: **mp3** (Chrome Android) ou **ogg**; se existirem os dois, o mp3 tem prioridade.

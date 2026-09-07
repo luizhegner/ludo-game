@@ -5,6 +5,8 @@
   import { BASE_ORIGIN } from '../engine/board';
   import { currentPlayer, legalPicks } from '../engine/game';
   import { POWER_ICON, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
+  import { powerIconUrl } from '../lib/art.svelte';
+  import Icon from './Icon.svelte';
   import { players } from '../stores/players.svelte';
   import Avatar from './Avatar.svelte';
   import Board from './Board.svelte';
@@ -88,7 +90,7 @@
     {#if match.info}
       {@const p = match.info.power}
       <div class="pinfo" style="--bg:{powerBg(p)}; --bd:{powerBorder(p)}">
-        <span class="picon">{POWER_ICON[p]}</span>
+        <span class="picon"><Icon src={powerIconUrl(p)} fallback={POWER_ICON[p]} size={32} /></span>
         <div>
           <b>{powerName(p)}</b>
           <div class="small">{powerBlurb(p)}</div>
@@ -213,8 +215,9 @@
     text-align: left;
   }
   .picon {
-    font-size: 28px;
-    line-height: 1;
+    display: grid;
+    place-items: center;
+    flex: none;
   }
   .picker {
     position: absolute;

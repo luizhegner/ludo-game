@@ -30,7 +30,12 @@ src/
     setup      última configuração de partida
     nav        abas + pilha de telas (integra com o "voltar" do Android)
   lib/         utilidades puras: cores, modos, poderes (ícones/textos), avatares, estatísticas, linha do tempo, backup, sons
+    art        arte opcional (ícones e sprites em src/assets/art/ — ver ARTE.md)
   ui/          componentes Svelte (páginas, tabuleiro, dado, sheets)
+  assets/art/  ícones e efeitos animados opcionais (powers/, ui/, fx/) — sem arquivo, vale o emoji/desenho padrão
+public/sounds/ samples opcionais (ver SONS.md) — sem arquivo, vale o som sintetizado
 ```
+
+Pra trocar ícones, efeitos e sons por arquivos de verdade: **`ARTE.md`** (especificações e lista do que procurar).
 
 Chaves no localStorage: `ludo.match.v1`, `ludo.players.v1`, `ludo.settings.v1`, `ludo.lastSetup.v2`. O histórico fica no **IndexedDB** (banco `ludo`, store `games`); uma partida completa tem ~80 KB e o localStorage não daria conta.
