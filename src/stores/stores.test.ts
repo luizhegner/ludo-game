@@ -265,16 +265,16 @@ describe('ajustes', () => {
     expect(packOrder('default')).toEqual(['default']);
     expect(packOrder('og')).toEqual(['og', 'default']);
   });
+
 });
 
 describe('última configuração de partida', () => {
   it('salva e recarrega, com padrão seguro', () => {
     expect(loadSetup().mode).toBe('classic');
-    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, captureBonus: true, disabledPowers: ['mine'], visibleMines: true });
+    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, disabledPowers: ['mine'], visibleMines: true });
     const s = loadSetup();
     expect(s.mode).toBe('quick');
     expect(s.slots.green).toBe('a');
-    expect(s.captureBonus).toBe(true);
     expect(s.disabledPowers).toEqual(['mine']);
     expect(s.visibleMines).toBe(true);
     clearSetup();

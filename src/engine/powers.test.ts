@@ -184,7 +184,7 @@ describe('casas de poder — sorteio', () => {
       for (const c of s.powers!.cells) expect(off.includes(c.power)).toBe(false);
       expect(s.powers!.cells).toHaveLength(TOTAL_CELLS);
     }
-    expect(enabledPowers({ mode: 'powers', captureBonus: false, disabledPowers: off })).toHaveLength(POWERS.length - 4);
+    expect(enabledPowers({ mode: 'powers', disabledPowers: off })).toHaveLength(POWERS.length - 4);
   });
 
   it('com poucos poderes ligados coloca o que dá, sem travar', () => {
@@ -601,6 +601,17 @@ describe('🎯 dado personalizável', () => {
     s = play(s, 1, 0);
     s = pick(s, 3, 0);
     expect(peekEffects(s, 'green', 0).shield).toBe(true);
+  });
+
+  it('comer no pouso da escolha (pick) também dá jogada extra', () => {
+    let s = game(['green', 'red']);
+    s = scene(s, { green: [0, BASE, BASE, BASE], red: [44, BASE, BASE, BASE] }, [{ abs: 2, power: 'magicDice' }]);
+    s = play(s, 2, 0); // 2 não dá extra; cai na casa do dado personalizável e escolhe
+    expect(s.turn.phase).toBe('pick');
+    s = pick(s, 3, 0); // anda até abs 5, onde o vermelho mora → come → joga de novo
+    expect(s.pieces.red[0]).toBe(BASE);
+    expect(s.turn.color).toBe('green');
+    expect(s.turn.phase).toBe('roll');
   });
 
   it('jogada extra de 6 é preservada através da escolha', () => {

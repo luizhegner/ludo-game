@@ -52,7 +52,7 @@
 | Sair da base | Somente com **6** |
 | Tirou 6 | Joga de novo. **Três 6 seguidos:** a última peça movida no turno volta pra base e perde a vez |
 | Comer | Cair em casa não-segura com peça adversária manda ela pra base. **[padrão]** Se houver mais de uma adversária empilhada ali, todas voltam |
-| Bônus de captura | **Padrão: nenhum**. Opção por partida: "jogada extra ao comer" |
+| Bônus de captura | **Quem come uma peça adversária joga de novo** — regra base em todos os modos com turnos (sem opção por partida; caiu a opção "jogada extra ao comer"). No Deathmatch não existe extra de nenhum tipo (não há "vez"); cair na peça do **parceiro** (2v2) não conta como comer |
 | Chegar no centro | **Número exato**. Se passar, a peça não pode ser movida (move outra ou perde a vez) |
 | Bônus ao chegar no centro | **Jogada extra**: quem coloca uma peça no centro rola de novo (vale pra dado, foguete, mola e dado personalizável). Não conta pros três 6. Quem colocou a 4ª peça só sai da rodada. As peças terminadas ficam **dentro do triângulo da cor**, perto do centro (4 vaguinhas por cor) |
 | Sem jogada possível | Mostra "sem jogadas" por ~1 s e **passa sozinho** |
@@ -91,7 +91,7 @@
 - **Casas seguras com prazo (anti-camping):** saída e estrelas protegem por **no máximo 15 s** seguidos; depois a peça fica **vulnerável até mover** (anel de proteção ao redor da peça vai esvaziando como um relógio; vermelho nos últimos 25 %, tracejado quando vulnerável). Os 15 s contam em **tempo de jogo** (não andam com o menu aberto). Peça que já estava parada quando o adversário chega ainda protegida **não é comida** — o atacante para junto e as duas coexistem até alguém mover. **Exceção:** o **canhão** de cada base **abate na hora** qualquer adversário que parar na **estrela da sua cor** (a peça fica um instante na estrela, o canhão dispara, ela volta pra base e conta como captura do dono do canhão — pode inclusive dar a 8ª captura). A estrela de uma cor **ausente** (ou removida) é casa segura normal; a própria estrela também.
 - **Conflitos:** o motor resolve cada jogada **no instante em que o dado para** (fila por ordem de parada); a animação é só apresentação. Captura é avaliada **no pouso**: se a peça-alvo ainda está em movimento, ninguém come ninguém e as duas coexistem na casa até alguém mover. Isso evita "comer o vento". Na tela, a vítima só some quando a peça atacante chega visualmente à casa. Se a peça que o jogador estava prestes a mover for comida no meio do caminho, a escolha dele é recalculada (sem opção → volta a rolar).
 - **Entrada:** toque simples no dado (rola pra cima e cai) — recomendado no Deathmatch pra tirar a mão da tela rápido; arrasto continua disponível.
-- Sem casas de poder. Sem % de progresso. **"Jogada extra ao comer" não existe** aqui (a opção some da Nova partida).
+- Sem casas de poder. Sem % de progresso. **Sem jogada extra de tipo nenhum** (nem de 6, nem ao comer) — em tempo real não há "vez"; o extra por captura vale só nos modos com turnos.
 - **Tempo:** cronômetro de 5:00 começa no **primeiro lançamento de qualquer jogador** e pausa enquanto o menu está aberto (como no 5 Minutos). Quando zera, a UI recusa novos lançamentos e espera as peças em movimento pousarem pra fechar.
 - Colocação final: **capturas** (desc.), desempate por **menos mortes**, depois ordem de cor [padrão]. Jogador removido fica em último. Pausar/remover até sobrar um ativo encerra a partida. ⋮ → Encerrar → **"Encerrar e ranquear por capturas"**.
 
@@ -256,7 +256,7 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
 - **Jogar:** Continuar partida (com a vez de quem é) · Nova partida · Top 3 do modo mais jogado · últimas 3 partidas.
 - **Nova partida em 3 passos:** modo (cards; modos das fases 3/4 aparecem como "em breve") → cores × jogadores
   (grade 2×2 na disposição do tabuleiro; toca na cor e escolhe/cria no cadastro; mesmo jogador não repete cor) →
-  regras (jogada extra ao comer). **Vem pré-preenchida com a última partida.**
+  regras (poderes desligados e minas visíveis, quando o modo tem poderes — o bônus de captura é regra fixa, não opção). **Vem pré-preenchida com a última partida.**
 - **Cadastro de jogadores:** nome (até 16, sem repetir) + avatar **emoji (48 opções) ou foto** da galeria/câmera
   (recortada no centro, 128×128 JPEG, salva local). Editar e excluir (o histórico mantém o nome da época).
   Detalhes: partidas, vitórias, % vitória, colocação média, maior sequência, comidas/perdidas, seis, últimas partidas.

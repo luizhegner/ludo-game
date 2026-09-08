@@ -282,7 +282,6 @@ class MatchStore {
     saveSetup({
       mode: cfg.rules.mode,
       slots,
-      captureBonus: cfg.rules.captureBonus,
       disabledPowers: cfg.rules.disabledPowers ?? prev.disabledPowers,
       visibleMines: cfg.rules.visibleMines ?? prev.visibleMines,
     });

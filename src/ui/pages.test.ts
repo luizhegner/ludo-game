@@ -33,7 +33,10 @@ function finished(winner: string, loser: string, now: number, mode: 'classic' | 
   // verde na casa 4 come o vermelho que está na casa absoluta 5 (relativa do vermelho: 5 - 13 + 52 = 44)
   s = { ...s, pieces: { ...s.pieces, green: [4, FINISH, FINISH, FINISH - 1], red: [44, -1, -1, -1] } };
   s = roll(s, 1, now + 60_000);
-  s = move(s, 0, now + 61_000); // captura → vez do vermelho
+  s = move(s, 0, now + 61_000); // captura → jogada extra (regra base): o verde joga de novo
+  expect(s.turn.color).toBe('green');
+  s = roll(s, 2, now + 90_000);
+  s = move(s, 0, now + 91_000); // verde anda a peça 0 e aí sim passa a vez
   expect(s.turn.color).toBe('red');
   s = roll(s, 2, now + 120_000); // vermelho sem jogada (tudo na base) → volta pro verde
   expect(s.turn.color).toBe('green');

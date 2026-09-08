@@ -132,8 +132,8 @@ describe('2v2', () => {
     expect(sameSide(game({ mode: 'classic' }), 'green', 'blue')).toBe(false);
   });
 
-  it('cair na casa do parceiro come normalmente (azar): ele volta pra base, mas não conta captura nem dá bônus', () => {
-    let g = game({ mode: 'team', captureBonus: true });
+  it('cair na casa do parceiro come normalmente (azar): ele volta pra base, mas não conta captura nem dá jogada extra', () => {
+    let g = game({ mode: 'team' });
     // verde em rel 5 (abs 5); azul precisa estar no abs 5: rel = 5 - 26 = -21 → 31
     g = withPieces(g, { green: [2, BASE, BASE, BASE], blue: [(5 - 26 + 52) % 52, BASE, BASE, BASE] });
     expect(toAbsolute('blue', g.pieces.blue[0])).toBe(5);
@@ -148,12 +148,12 @@ describe('2v2', () => {
   });
 
   it('comer adversário conta captura normalmente', () => {
-    let g = game({ mode: 'team', captureBonus: true });
+    let g = game({ mode: 'team' });
     g = withPieces(g, { green: [2, BASE, BASE, BASE], red: [(5 - 13 + 52) % 52, BASE, BASE, BASE] });
     const a = move(roll(g, 3), 0);
     expect(a.pieces.red[0]).toBe(BASE);
     expect(a.players.find((p) => p.color === 'green')!.stats.captures).toBe(1);
-    expect(a.turn.color).toBe('green'); // bônus de captura
+    expect(a.turn.color).toBe('green'); // jogada extra por comer (regra base)
   });
 
   it('fogo NÃO queima o parceiro ao passar por cima, mas queima adversário', () => {

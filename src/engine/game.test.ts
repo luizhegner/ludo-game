@@ -162,8 +162,9 @@ describe('captura', () => {
     expect(s.players[0].stats.captures).toBe(1);
     expect(s.players[1].stats.deaths).toBe(1);
     expect(s.log.some((e) => e.type === 'capture')).toBe(true);
-    // sem bônus, a vez passa
-    expect(s.turn.color).toBe('red');
+    // comer dá jogada extra (regra base, sem opção por partida)
+    expect(s.turn.color).toBe('green');
+    expect(s.turn.phase).toBe('roll');
   });
 
   it('não come em casa segura (estrela e saída)', () => {
@@ -194,12 +195,11 @@ describe('captura', () => {
     expect(s.pieces.green).toEqual([20, 20, BASE, BASE]);
   });
 
-  it('com bônus de captura ligado, joga de novo', () => {
-    let s = withPieces(game(undefined, { captureBonus: true }), { green: [15, BASE, BASE, BASE], red: [7, BASE, BASE, BASE] });
+  it('sem captura, a vez passa (o extra não vem de graça)', () => {
+    let s = withPieces(game(), { green: [15, BASE, BASE, BASE], red: [8, BASE, BASE, BASE] });
     s = roll(s, 5);
     s = move(s, 0);
-    expect(s.turn.color).toBe('green');
-    expect(s.turn.phase).toBe('roll');
+    expect(s.turn.color).toBe('red');
   });
 
   it('não captura na reta final (posições relativas iguais não colidem)', () => {

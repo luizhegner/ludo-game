@@ -24,7 +24,6 @@
   let step = $state<1 | 2 | 3>(1);
   let mode = $state<Mode>(MODE_BY_ID[last.mode]?.available ? last.mode : 'classic');
   let slots = $state<Record<Color, string | null>>({ ...last.slots });
-  let captureBonus = $state(last.captureBonus);
   let disabledPowers = $state<Power[]>([...last.disabledPowers]);
   let visibleMines = $state(last.visibleMines);
   let picking: Color | null = $state(null);
@@ -87,7 +86,7 @@
     if (match.active && !confirm('Tem uma partida em andamento. Começar outra apaga ela. Continuar?')) return;
     sound.play('tap');
     match.start({
-      rules: { mode, captureBonus, ...(info.powers ? { disabledPowers: [...disabledPowers], visibleMines } : {}) },
+      rules: { mode, ...(info.powers ? { disabledPowers: [...disabledPowers], visibleMines } : {}) },
       players: chosen.map((c) => {
         const p = players.get(slots[c])!;
         return { color: c, playerId: p.id, name: p.name, avatar: p.avatar };
@@ -180,11 +179,9 @@
       </div>
     </div>
 
-    {#if mode !== 'deathmatch'}
-      <div class="card rules">
-        <Toggle label="Jogada extra ao comer" hint="Quem come uma peça rola o dado de novo" bind:checked={captureBonus} />
-      </div>
-    {/if}
+    <p class="muted fixed">
+      Regra fixa: <b>quem come uma peça adversária joga de novo</b> (no Deathmatch não existe vez, então lá não rola).
+    </p>
 
     {#if info.powers}
       <div class="card powers">
