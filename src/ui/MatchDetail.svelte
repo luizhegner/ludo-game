@@ -93,6 +93,8 @@
         <div class="tag">Encerrada sem contar</div>
       {:else if game.endReason === 'ranked'}
         <div class="tag">Encerrada e ranqueada por progresso</div>
+      {:else if game.endReason === 'time'}
+        <div class="tag">Acabou o tempo</div>
       {/if}
       {#if game.rules.captureBonus}
         <div class="muted small">Regra extra: jogada extra ao comer</div>

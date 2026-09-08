@@ -6,6 +6,7 @@ import { match, TIMING } from '../stores/match.svelte';
 import { players } from '../stores/players.svelte';
 import { history } from '../stores/history.svelte';
 import { nav } from '../stores/nav.svelte';
+import { settings } from '../stores/settings.svelte';
 import { powerName } from '../lib/powers';
 
 function text() {
@@ -421,4 +422,154 @@ describe('modo Poderes pela UI', () => {
     expect(g.log.some((e) => e.type === 'power')).toBe(true);
     unmount(app);
   }, 60000);
+});
+
+describe('fase 4 pela UI: 5 Minutos e 2v2', () => {
+  beforeEach(() => {
+    resetAll();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-07T12:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+  function tick(ms: number) {
+    vi.advanceTimersByTime(ms);
+    flushSync();
+  }
+  function setupPlayers(n: 2 | 4) {
+    const names = ['Ana', 'Bia', 'Caio', 'Duda'];
+    const colors = ['Verde', 'Vermelho', 'Azul', 'Amarelo'];
+    for (let i = 0; i < n; i++) players.create(names[i], '🙂');
+    for (let i = 0; i < n; i++) {
+      clickText(colors[i], '.slot');
+      clickText(names[i], '.row');
+    }
+  }
+
+  it('5 Minutos: peças começam fora, cronômetro só começa no primeiro lançamento, pausa com o menu e fecha por tempo', () => {
+    const app = mount(App, { target: document.getElementById('app')! });
+    flushSync();
+    clickText('Nova partida');
+    clickText('5 Minutos', '.mode');
+    setupPlayers(2);
+    clickText('Continuar com 2 jogadores');
+    expect(text()).toContain('Cronômetro de 5:00');
+    clickText('Iniciar partida');
+    const s = match.state!;
+    expect(s.rules.mode).toBe('fiveMin');
+    expect(s.pieces.green).toEqual([0, 0, 0, 0]);
+    expect(document.querySelector('.clock')!.textContent).toContain('5:00');
+    // ainda parado
+    tick(5000);
+    expect(document.querySelector('.clock')!.textContent).toContain('5:00');
+    // primeiro lançamento liga o relógio (auto-move: as 4 peças empilhadas são equivalentes)
+    const first = match.state!.turn.color;
+    match.roll(2);
+    tick(TIMING.dice + TIMING.autoMove + TIMING.step * 2 + 200);
+    expect(match.state!.pieces[first][0]).toBe(2);
+    tick(10_000);
+    expect(match.remainingMs).toBeLessThanOrEqual(300_000 - 10_000);
+    expect(document.querySelector('.clock')!.textContent).not.toContain('5:00');
+    // menu aberto pausa (o estado guarda o tempo consumido e para de contar)
+    click('.menu-btn');
+    const paused = match.state!.clock!;
+    expect(paused.runningSince).toBeNull();
+    const shown = document.querySelector('.clock')!.textContent;
+    tick(20_000);
+    expect(match.state!.clock).toEqual(paused);
+    expect(document.querySelector('.clock')!.textContent).toBe(shown);
+    click('.sheet [aria-label="Fechar"]');
+    expect(match.state!.clock!.runningSince).not.toBeNull();
+    tick(2000);
+    expect(document.querySelector('.clock')!.textContent).not.toBe(shown);
+    // avança até acabar (em blocos, pra não acumular milhares de tiques)
+    for (let i = 0; i < 31 && match.state!.turn.phase !== 'over'; i++) tick(10_000);
+    expect(match.state!.turn.phase).toBe('over');
+    expect(match.state!.endReason).toBe('time');
+    expect(document.querySelector('.podium')).toBeTruthy();
+    expect(text()).toContain('Acabou o tempo');
+    expect(history.list.length).toBe(1);
+    unmount(app);
+  });
+
+  it('2v2: exige 4 jogadores, mostra as duplas e quem termina as 4 joga com as peças do parceiro', () => {
+    const app = mount(App, { target: document.getElementById('app')! });
+    flushSync();
+    clickText('Nova partida');
+    clickText('2v2', '.mode');
+    expect(text()).toContain('Precisa de exatamente 4 jogadores');
+    setupPlayers(4);
+    expect(text()).toContain('Dupla A');
+    clickText('Continuar com 4 jogadores');
+    expect(text()).toContain('8 peças');
+    clickText('Iniciar partida');
+    expect(match.state!.rules.mode).toBe('team');
+    // cenário: verde terminou as 4; azul tem peças em jogo; é a vez do verde
+    const s0 = structuredClone(match.state!);
+    s0.pieces.green = [56, 56, 56, 56];
+    s0.finished = ['green'];
+    s0.pieces.blue = [3, 7, -1, -1];
+    s0.turn = { color: 'green', phase: 'roll', dice: null, legal: [], sixStreak: 0, lastMoved: null };
+    (match as unknown as { state: typeof s0 }).state = s0;
+    flushSync();
+    // cabeçalho: Ana (verde) jogando, com a bolinha azul do parceiro
+    expect(document.querySelector('.who')!.textContent).toContain('Ana');
+    expect(document.querySelector('.who .for')).toBeTruthy();
+    match.roll(2);
+    tick(TIMING.dice + 50);
+    expect(match.state!.turn.legal).toEqual([0, 1]);
+    // as peças azuis é que estão selecionáveis
+    const sel = [...document.querySelectorAll('.pawn.selectable')];
+    expect(sel.length).toBe(2);
+    (sel[0] as SVGGElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    flushSync();
+    tick(TIMING.step * 2 + 200);
+    expect(match.state!.pieces.blue).toEqual([5, 7, -1, -1]);
+    unmount(app);
+  });
+  it('tema OG: cabeçalho compacto com ✕/☠ e 👉, quadrante da vez pulsa e a peça deixa rastro fantasma', () => {
+    settings.theme = 'og';
+    const { app } = startTwoPlayers();
+    flushSync();
+    expect(document.documentElement.dataset.theme).toBe('og');
+    const color = match.state!.turn.color;
+
+    // cabeçalho OG: avatar emoldurado, contadores e a mãozinha (é hora de rolar)
+    expect(document.querySelector('.screen.og')).not.toBeNull();
+    const who = document.querySelector('.who-og')!;
+    expect(who).not.toBeNull();
+    expect(who.textContent).toContain('✕ 0');
+    expect(who.textContent).toContain('☠ 0');
+    expect(who.querySelector('.point')).not.toBeNull();
+    expect(document.querySelector('.who')).toBeNull(); // o pill do tema claro não aparece
+
+    // tabuleiro com moldura e pulso só no quadrante da vez
+    expect(document.querySelector('.board.og')).not.toBeNull();
+    expect(document.querySelectorAll('.og-pulse').length).toBe(1);
+    // nome e % dentro do quadrante (texto do svg)
+    expect(document.querySelector('.board svg')!.textContent).toContain('%');
+
+    // sai da base e anda 4: durante o passo 3 o rastro mostra as casas anteriores
+    match.roll(6);
+    tick(TIMING.dice + TIMING.autoMove + TIMING.out + 100);
+    expect(match.state!.pieces[color][0]).toBe(0);
+    expect(document.querySelector('.who-og .point')).not.toBeNull(); // 6 → rola de novo
+    match.roll(4);
+    tick(TIMING.dice + TIMING.autoMove);
+    expect(document.querySelector('.who-og .point')).toBeNull(); // movendo: sem mãozinha
+    tick(TIMING.step * 3);
+    expect(match.moving!.pos).toBe(3);
+    const ghosts = document.querySelectorAll('.board .ghost');
+    expect(ghosts.length).toBe(3); // casas 0, 1 e 2
+    tick(TIMING.step * 2 + 100);
+    expect(match.moving).toBeNull();
+    expect(document.querySelectorAll('.board .ghost').length).toBe(0);
+
+    // voltar pro tema claro devolve o cabeçalho normal
+    settings.theme = 'cream';
+    flushSync();
+    expect(document.querySelector('.who-og')).toBeNull();
+    expect(document.querySelector('.who')).not.toBeNull();
+    expect(document.querySelector('.board.og')).toBeNull();
+    unmount(app);
+  });
 });

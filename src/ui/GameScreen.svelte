@@ -3,11 +3,13 @@
   import { sound } from '../lib/sound';
   import { COLOR_HEX, COLOR_ON } from '../lib/colors';
   import { BASE_ORIGIN } from '../engine/board';
-  import { currentPlayer, legalPicks } from '../engine/game';
+  import { controllerOf, currentPlayer, legalPicks, piecesColorFor } from '../engine/game';
+  import { fmtClock } from '../lib/format';
   import { POWER_ICON, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
   import { powerIconUrl } from '../lib/art.svelte';
   import Icon from './Icon.svelte';
   import { players } from '../stores/players.svelte';
+  import { settings } from '../stores/settings.svelte';
   import Avatar from './Avatar.svelte';
   import Board from './Board.svelte';
   import Dice from './Dice.svelte';
@@ -22,8 +24,26 @@
   let menuOpen = $state(false);
 
   const game = $derived(match.state!);
-  const turn = $derived(game.turn.color);
+  /** Quem está jogando (no 2v2 pode ser o parceiro da cor da vez). */
+  const turn = $derived(controllerOf(game, game.turn.color));
+  /** Cor das peças que vão andar. */
+  const piecesColor = $derived(piecesColorFor(game, game.turn.color));
   const me = $derived(currentPlayer(game));
+  /** Tema OG: cabeçalho compacto (avatar emoldurado + ✕/☠ + 👉) e moldura de madeira no tabuleiro. */
+  const og = $derived(settings.theme === 'og');
+  /** Cronômetro: pisca nos últimos 30 s. */
+  const urgent = $derived(match.timed && match.remainingMs <= 30_000 && match.remainingMs > 0);
+
+  // menu aberto pausa o relógio (ações explícitas, sem efeito reativo)
+  function openMenu() {
+    sound.play('tap');
+    menuOpen = true;
+    match.holdClock('menu');
+  }
+  function closeMenu() {
+    menuOpen = false;
+    match.releaseClock('menu');
+  }
   const canRoll = $derived(game.turn.phase === 'roll' && !match.busy);
   const legal = $derived(game.turn.phase === 'move' ? game.turn.legal : []);
   /** Dado personalizável: números que a peça consegue andar. */
@@ -39,16 +59,42 @@
   });
 </script>
 
-<div class="screen">
+<div class="screen" class:og>
   <header>
+    {#if og && me}
+      <!-- OG: avatar num quadrado com a borda na cor da vez, ✕ capturas / ☠ mortes, e a mãozinha quando é hora de rolar -->
+      <div class="who-og" style="--c:{COLOR_HEX[turn]}">
+        {#if canRoll}<span class="point" aria-hidden="true">👉</span>{/if}
+        <span class="frame"><Avatar avatar={players.avatarOf(me.playerId, me.avatar)} size={34} /></span>
+        <span class="stats" aria-label="capturas e mortes">
+          <span>✕ {me.stats.captures}</span>
+          <span>☠ {me.stats.deaths}</span>
+        </span>
+        <span class="name">{players.nameOf(me.playerId, me.name)}</span>
+        {#if piecesColor !== turn}
+          <span class="for" style="--pc:{COLOR_HEX[piecesColor]}" title="jogando com as peças do parceiro"></span>
+        {/if}
+      </div>
+    {:else}
     <div class="who" style="--c:{COLOR_HEX[turn]}; --on:{COLOR_ON[turn]}">
       <span class="dot"></span>
       {#if me}
         <Avatar avatar={players.avatarOf(me.playerId, me.avatar)} size={28} />
         <span class="name">{players.nameOf(me.playerId, me.name)}</span>
+        {#if piecesColor !== turn}
+          <span class="for" style="--pc:{COLOR_HEX[piecesColor]}" title="jogando com as peças do parceiro"></span>
+        {/if}
       {/if}
     </div>
-    <button class="menu-btn" aria-label="Menu" onclick={() => { sound.play('tap'); menuOpen = true; }}>⋮</button>
+    {/if}
+    <div class="hright">
+      {#if match.timed}
+        <span class="clock" class:urgent class:paused={game.clock?.runningSince === null && (game.clock?.elapsedMs ?? 0) > 0 && game.turn.phase !== 'over'} aria-label="Tempo restante">
+          ⏱ {fmtClock(match.remainingMs)}
+        </span>
+      {/if}
+      <button class="menu-btn" aria-label="Menu" onclick={openMenu}>⋮</button>
+    </div>
   </header>
 
   <div class="board-wrap">
@@ -106,7 +152,7 @@
   </div>
 
   {#if menuOpen}
-    <GameMenu onClose={() => (menuOpen = false)} {onExit} />
+    <GameMenu onClose={closeMenu} {onExit} />
   {/if}
 
   {#if game.turn.phase === 'over'}
@@ -128,6 +174,101 @@
     justify-content: space-between;
     min-height: 44px;
   }
+  .hright {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    font-size: 17px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    letter-spacing: 0.02em;
+  }
+  .clock.paused {
+    opacity: 0.55;
+  }
+  .clock.urgent {
+    color: #fff;
+    background: #d9483f;
+    animation: blink 1s steps(2, end) infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0.55;
+    }
+  }
+  .for {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--pc);
+    border: 2px solid #fff;
+    margin-left: -2px;
+  }
+  /* ---- cabeçalho do tema OG ---- */
+  .who-og {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--ink);
+    font-weight: 800;
+    font-size: 16px;
+    min-width: 0;
+  }
+  .who-og .frame {
+    display: inline-grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 3px solid var(--c);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 18px -2px var(--c);
+    flex: none;
+  }
+  .who-og .stats {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: #fbf3e6;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    flex: none;
+  }
+  .who-og .name {
+    max-width: 34vw;
+  }
+  .who-og .point {
+    font-size: 24px;
+    animation: point 0.9s ease-in-out infinite;
+    flex: none;
+  }
+  @keyframes point {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(6px);
+    }
+  }
+  .screen.og .menu-btn,
+  .screen.og .clock {
+    background: rgba(0, 0, 0, 0.35);
+    color: #fbf3e6;
+    box-shadow: 0 0 0 1px rgba(255, 235, 205, 0.14) inset;
+  }
+  .screen.og .hint {
+    color: #e6d6c6;
+  }
+
   .who {
     display: inline-flex;
     align-items: center;

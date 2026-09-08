@@ -39,6 +39,7 @@
   const THEMES: { id: Theme; name: string; hint: string }[] = [
     { id: 'cream', name: 'Creme', hint: 'Fundo liso e discreto. Gasta menos bateria.' },
     { id: 'aurora', name: 'Aurora', hint: 'Manchas de cor vibrantes e desfocadas, em movimento lento atrás do jogo.' },
+    { id: 'og', name: 'OG', hint: 'O visual do jogo original: mesa escura com brilhos dourados, tabuleiro com moldura de madeira, bases chapadas e placar dentro do tabuleiro.' },
   ];
 
   function setHaptics(level: HapticsLevel) {
@@ -329,6 +330,13 @@
   }
   .swatch.cream {
     background: #f6f1e7;
+  }
+  .swatch.og {
+    background:
+      radial-gradient(circle at 30% 30%, rgba(255, 210, 122, 0.55) 0, transparent 30%),
+      radial-gradient(circle at 70% 70%, rgba(255, 210, 122, 0.35) 0, transparent 28%),
+      linear-gradient(135deg, #4a2420, #22100f);
+    border-color: #7a4a2a;
   }
   .swatch.aurora {
     background:

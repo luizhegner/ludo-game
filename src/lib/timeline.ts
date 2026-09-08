@@ -49,6 +49,8 @@ function describe(e: GameEvent, nameOf: (c: Color) => string): TimelineItem | nu
         color: e.color,
         kind: 'penalty',
       };
+    case 'partnerTurn':
+      return { t: e.t, text: `${nameOf(e.color)} passa a jogar com as peças de ${nameOf(e.forPartner)}`, color: e.color, kind: 'info' };
     case 'move':
       // saída da base é um marco; movimento comum não
       if (e.from === -1) return { t: e.t, text: `${nameOf(e.color)} tirou uma peça da base`, color: e.color, kind: 'info' };
@@ -56,7 +58,7 @@ function describe(e: GameEvent, nameOf: (c: Color) => string): TimelineItem | nu
     case 'gameOver': {
       if (e.reason === 'abandoned') return { t: e.t, text: 'Partida encerrada sem contar', kind: 'over' };
       const w = e.placements?.[0];
-      const how = e.reason === 'ranked' ? ' (encerrada e ranqueada por progresso)' : '';
+      const how = e.reason === 'ranked' ? ' (encerrada e ranqueada por progresso)' : e.reason === 'time' ? ' (acabou o tempo)' : '';
       return { t: e.t, text: w ? `Fim de jogo · ${nameOf(w)} venceu${how}` : `Fim de jogo${how}`, color: w, kind: 'over' };
     }
     default:

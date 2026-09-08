@@ -1,7 +1,7 @@
 /** Ajustes do app, persistidos em localStorage. */
 
 export type HapticsLevel = 'off' | 'soft' | 'normal';
-export type Theme = 'cream' | 'aurora';
+export type Theme = 'cream' | 'aurora' | 'og';
 
 export interface Settings {
   sound: boolean;
@@ -14,7 +14,7 @@ export interface Settings {
   autoMove: boolean;
   /** 'physics' = face que ficou pra cima; 'seeded' = sorteio + animação. */
   diceMode: 'seeded' | 'physics';
-  /** Fundo: creme liso ou "aurora" (manchas de cor desfocadas em movimento). */
+  /** Fundo: creme liso, "aurora" (manchas de cor desfocadas em movimento) ou "og" (mesa escura do jogo original). */
   theme: Theme;
 }
 
@@ -38,7 +38,7 @@ function sanitize(v: unknown): Partial<Settings> {
   else if (o.haptics === 'off' || o.haptics === 'soft' || o.haptics === 'normal') out.haptics = o.haptics;
   if (typeof o.autoMove === 'boolean') out.autoMove = o.autoMove;
   if (o.diceMode === 'seeded' || o.diceMode === 'physics') out.diceMode = o.diceMode;
-  if (o.theme === 'cream' || o.theme === 'aurora') out.theme = o.theme;
+  if (o.theme === 'cream' || o.theme === 'aurora' || o.theme === 'og') out.theme = o.theme;
   return out;
 }
 

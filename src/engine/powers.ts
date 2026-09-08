@@ -55,7 +55,7 @@ export const POWER_INFO: Record<Power, PowerInfo> = {
   spring: {
     id: 'spring',
     name: 'Mola',
-    blurb: 'A peça pula de 4 a 9 casas pra frente. Se cair em adversário, come.',
+    blurb: 'A peça pula até a próxima casa segura (estrela ou saída). Lá ninguém come ninguém.',
     family: 'boost',
     bad: false,
     weight: 3,
@@ -119,7 +119,7 @@ export const POWER_INFO: Record<Power, PowerInfo> = {
   fire: {
     id: 'fire',
     name: 'Fogo',
-    blurb: 'No próximo movimento, toda peça adversária no caminho volta pra base (casas seguras protegem).',
+    blurb: 'A peça fica em chamas até queimar alguém: ao andar, toda peça adversária no caminho volta pra base (casas seguras protegem).',
     family: 'blast',
     bad: false,
     weight: 3,
@@ -148,7 +148,8 @@ export const MINE_CELLS = 2;
 export const REFILL_AT = 4;
 
 export const ROCKET_RANGE: [number, number] = [6, 20];
-export const SPRING_RANGE: [number, number] = [4, 9];
+/** Mola sem casa segura à frente (já perto da reta final): pula no máximo tantas casas. */
+export const SPRING_MAX_STRETCH = 6;
 export const MEGA_BOMB_RADIUS = 2;
 
 export function hasPowers(rules: Rules): boolean {
@@ -285,9 +286,26 @@ export function pendingOf(s: GameState, color: Color): PendingMultiplier | undef
 }
 
 /** Mesmo lado? Por enquanto só a própria cor; a fase 5 (2v2) acrescenta o parceiro. */
-export function sameSide(_s: GameState, a: Color, b: Color): boolean {
-  return a === b;
+export function sameSide(s: GameState, a: Color, b: Color): boolean {
+  if (a === b) return true;
+  return hasTeams(s.rules) && partnerOf(a) === b;
 }
+
+/** Duplas de cores opostas: verde+azul × vermelho+amarelo. */
+export function partnerOf(c: Color): Color {
+  return c === 'green' ? 'blue' : c === 'blue' ? 'green' : c === 'red' ? 'yellow' : 'red';
+}
+
+export function hasTeams(rules: Rules): boolean {
+  return rules.mode === 'team' || rules.mode === 'teamPowers';
+}
+
+export function isTimed(rules: Rules): boolean {
+  return rules.mode === 'fiveMin' || rules.mode === 'deathmatch';
+}
+
+/** Duração padrão dos modos com cronômetro. */
+export const DEFAULT_DURATION_MS = 5 * 60 * 1000;
 
 /** Peça está "em jogo" no anel (fora da base, fora da reta final). */
 export function onRing(pos: number): boolean {

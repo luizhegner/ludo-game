@@ -49,6 +49,8 @@ export interface Rules {
   disabledPowers?: Power[];
   /** Minas aparecem desde que são colocadas (em vez de escondidas até alguém passar por cima). */
   visibleMines?: boolean;
+  /** Duração em ms nos modos com cronômetro (5 Minutos / Deathmatch). Ausente = padrão do modo. */
+  durationMs?: number;
 }
 
 /** Casa de poder no anel (índice absoluto). */
@@ -63,9 +65,9 @@ export interface PowerCell {
 export interface PieceEffects {
   shield?: boolean;
   /**
-   * Fogo: >0 = em chamas. Vale 2 ao pegar e cai 1 no início de cada vez do
-   * jogador, então dura até o fim da próxima vez; o próximo movimento de dado
-   * da peça consome.
+   * Fogo: >0 = em chamas. Não expira com o tempo (como no jogo original): a
+   * peça continua queimando até **queimar alguém** (ou quebrar um escudo),
+   * ser comida, ser congelada ou entrar na reta final.
    */
   fire?: number;
   /** Congelada: >0 = não pode ser movida. Mesma contagem do fogo (2 → dura a próxima vez inteira). */
@@ -153,7 +155,8 @@ export interface Turn {
   extra?: boolean;
 }
 
-export type EndReason = 'finished' | 'ranked' | 'abandoned';
+/** `time` = acabou o cronômetro (5 Minutos / Deathmatch). */
+export type EndReason = 'finished' | 'ranked' | 'abandoned' | 'time';
 
 export interface GameState {
   id: string;
@@ -177,6 +180,11 @@ export interface GameState {
   /** Estado do gerador de números aleatórios (serializável). */
   rng: number;
   log: GameEvent[];
+  /**
+   * Cronômetro (modos com tempo): quanto de jogo já foi consumido em ms e,
+   * se estiver correndo, desde quando (`Date.now()`). Pausado → `runningSince` null.
+   */
+  clock?: { elapsedMs: number; runningSince: number | null };
 }
 
 export type BlastPower = 'bomb' | 'megaBomb' | 'mine';
@@ -193,6 +201,8 @@ export type GameEvent =
   | { t: number; type: 'playerDone'; color: Color; place: number }
   | { t: number; type: 'turn'; color: Color }
   | { t: number; type: 'gameOver'; placements: Color[] | null; reason: EndReason }
+  /** Parceiro assumiu a vez do outro (2v2: quem terminou as 4 joga com as peças do parceiro). */
+  | { t: number; type: 'partnerTurn'; color: Color; forPartner: Color }
   // --- poderes ---
   /** Peça pisou numa casa de poder (a casa é consumida). */
   | { t: number; type: 'power'; color: Color; piece: number; power: Power; ring: number }
@@ -212,8 +222,8 @@ export type GameEvent =
   | { t: number; type: 'pick'; color: Color; piece: number; value: number }
   /** Multiplicador pendente perdido. */
   | { t: number; type: 'multLost'; color: Color; piece: number; factor: 2 | 3; reason: 'home' | 'frozen' | 'finished' | 'overshoot' | 'replaced' }
-  /** Fogo apagou sem ser usado. */
-  | { t: number; type: 'fireOut'; color: Color; piece: number; reason: 'home' | 'frozen' | 'stretch' | 'expired' }
+  /** Fogo apagou: 'burned' = consumido ao queimar alguém; os outros sem usar. */
+  | { t: number; type: 'fireOut'; color: Color; piece: number; reason: 'home' | 'frozen' | 'stretch' | 'expired' | 'burned' }
   | { t: number; type: 'mineRevealed'; ring: number; by: Color }
   | { t: number; type: 'mineDetonated'; ring: number; by: Color }
   /** Novas casas de poder colocadas (índices absolutos; minas escondidas não aparecem aqui). */

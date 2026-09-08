@@ -37,7 +37,8 @@
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     padding: 6px 6px calc(var(--safe-bottom) + 6px);
-    background: rgba(255, 255, 255, 0.92);
+    /* no tema OG a variável escurece a barra */
+    background: var(--tabbar-bg, rgba(255, 255, 255, 0.92));
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid var(--line);

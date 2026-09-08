@@ -79,7 +79,10 @@ export function describePowerEvent(e: GameEvent, nameOf: (c: Color) => string): 
       return { text: `${POWER_ICON[e.power]} ${nameOf(e.color)} pegou ${POWER_INFO[e.power].name.toLowerCase()}`, color: e.color };
     case 'fly':
       return {
-        text: `${POWER_ICON[e.power]} ${nameOf(e.color)} ${e.power === 'rocket' ? 'voou' : 'pulou'} ${e.n} casas`,
+        text:
+          e.power === 'rocket'
+            ? `${POWER_ICON[e.power]} ${nameOf(e.color)} voou ${e.n} casas`
+            : `${POWER_ICON[e.power]} ${nameOf(e.color)} pulou ${e.n} ${e.n === 1 ? 'casa' : 'casas'}, até a casa segura`,
         color: e.color,
       };
     case 'burn':

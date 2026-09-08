@@ -114,13 +114,23 @@
     {:else if view === 'rules'}
       <div class="rules">
         <div><b>Modo:</b> {modeName(game.rules.mode)}</div>
-        <div><b>Sair da base:</b> só com 6</div>
+        {#if game.rules.mode === 'fiveMin'}
+          <div><b>Começo:</b> todas as peças já fora, na saída · qualquer número move</div>
+          <div><b>Tempo:</b> 5:00 · começa no primeiro lançamento · pausa enquanto este menu está aberto</div>
+        {:else}
+          <div><b>Sair da base:</b> só com 6</div>
+        {/if}
         <div><b>6:</b> joga de novo · três 6 seguidos: última peça movida volta pra base e perde a vez</div>
         <div><b>Casas seguras:</b> saída de cada cor + as 4 estrelas</div>
         <div><b>Comer:</b> cair em adversário fora de casa segura manda ele pra base{game.rules.captureBonus ? ' e você joga de novo' : ''}</div>
         <div><b>Centro:</b> número exato · quem coloca uma peça no centro joga de novo</div>
         {#if game.rules.mode === 'quick'}
           <div><b>Fim:</b> vence quem colocar o primeiro peão no centro</div>
+        {:else if game.rules.mode === 'fiveMin'}
+          <div><b>Fim:</b> acabou o tempo → colocação por peças no centro, desempate por progresso</div>
+        {:else if game.rules.mode === 'team' || game.rules.mode === 'teamPowers'}
+          <div><b>Duplas:</b> verde + azul × vermelho + amarelo · vence a dupla que colocar as 8 peças</div>
+          <div><b>Parceiro:</b> quem termina as 4 joga com as peças do parceiro · cair na casa dele come normalmente (azar){powersOn ? ' · fogo não queima o parceiro · mega bomba pega todo mundo' : ''}</div>
         {:else}
           <div><b>Fim:</b> a partida continua até sobrar um</div>
         {/if}

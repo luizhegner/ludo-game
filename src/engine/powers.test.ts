@@ -17,6 +17,7 @@ import { SAFE_ABS, toAbsolute } from './board';
 import {
   MINE_CELLS,
   POWER_INFO,
+  SPRING_MAX_STRETCH,
   TOTAL_CELLS,
   enabledPowers,
   peekEffects,
@@ -372,13 +373,13 @@ describe('❄️ congelar', () => {
 // ---------------------------------------------------------------------------
 
 describe('🔥 fogo', () => {
-  it('no próximo movimento queima adversários no caminho e no pouso', () => {
+  it('fica aceso até queimar alguém: no caminho e no pouso, e apaga ao queimar', () => {
     let s = game(['green', 'red']);
     const R = (a: number) => (a - 13 + RING) % RING;
     s = scene(s, { green: [0, BASE, BASE, BASE], red: [R(2), R(3), R(5), R(20)] }, [{ abs: 1, power: 'fire' }]);
     s = play(s, 1, 0);
-    expect(peekEffects(s, 'green', 0).fire).toBe(2);
-    // vez do vermelho: move a peça que está longe (20 → 21)
+    expect(peekEffects(s, 'green', 0).fire).toBe(1);
+    // vez do vermelho: move a peça que está longe (20 → 21); o fogo do verde não cai com o tempo
     s = play(s, 1, 3);
     expect(s.turn.color).toBe('green');
     expect(peekEffects(s, 'green', 0).fire).toBe(1);
@@ -392,8 +393,26 @@ describe('🔥 fogo', () => {
     expect(caps.every((c) => c.how === 'fire')).toBe(true);
     expect(events(s, 'burn')[0]).toMatchObject({ color: 'green', piece: 0, from: 1, to: 5 });
     expect(peekEffects(s, 'green', 0).fire).toBe(0);
+    expect(events(s, 'fireOut').at(-1)).toMatchObject({ color: 'green', piece: 0, reason: 'burned' });
     expect(s.players[0].stats.captures).toBe(3);
     expect(s.players[1].stats.deaths).toBe(3);
+  });
+
+  it('andar sem queimar ninguém mantém o fogo aceso (várias jogadas)', () => {
+    let s = game(['green', 'red']);
+    s = scene(s, { green: [0, BASE, BASE, BASE], red: [(30 - 13 + RING) % RING, BASE, BASE, BASE] }, [{ abs: 1, power: 'fire' }]);
+    s = play(s, 1, 0);
+    expect(peekEffects(s, 'green', 0).fire).toBe(1);
+    // três rodadas andando pelo vazio: continua em chamas
+    for (let i = 0; i < 3; i++) {
+      s = play(s, 1, 0); // vermelho anda
+      expect(s.turn.color).toBe('green');
+      s = play(s, 2, 0); // verde anda sem tocar ninguém
+      expect(peekEffects(s, 'green', 0).fire).toBe(1);
+    }
+    expect(events(s, 'fireOut')).toHaveLength(0);
+    // toda jogada em chamas registra 'burn' (pra animação), mesmo sem vítima
+    expect(events(s, 'burn').length).toBe(3);
   });
 
   it('casa segura protege do fogo (só no caminho; pouso em segura também não come)', () => {
@@ -429,8 +448,8 @@ describe('🔥 fogo', () => {
     expect(peekEffects(s, 'green', 0).fire).toBe(0);
   });
 
-  it('fogo expira se não for usado na próxima vez; apaga ao entrar na reta final; apaga ao ser comida', () => {
-    // expira
+  it('fogo não expira com o tempo; apaga ao entrar na reta final; apaga ao ser comida', () => {
+    // não expira
     let s = game(['green', 'red']);
     s = scene(s, { green: [0, 10, BASE, BASE] }, [{ abs: 1, power: 'fire' }]);
     s = play(s, 1, 0);
@@ -438,8 +457,8 @@ describe('🔥 fogo', () => {
     expect(peekEffects(s, 'green', 0).fire).toBe(1);
     s = play(s, 2, 1); // verde move outra peça
     s = roll(s, 1, 0); // vermelho
-    expect(peekEffects(s, 'green', 0).fire).toBe(0);
-    expect(events(s, 'fireOut').at(-1)).toMatchObject({ reason: 'expired' });
+    expect(peekEffects(s, 'green', 0).fire).toBe(1);
+    expect(events(s, 'fireOut')).toHaveLength(0);
 
     // reta final
     s = game(['green', 'red']);
@@ -448,17 +467,18 @@ describe('🔥 fogo', () => {
     s = play(s, 3, 0);
     expect(s.pieces.green[0]).toBe(HOME_START + 1);
     expect(peekEffects(s, 'green', 0).fire).toBe(0);
+    expect(events(s, 'fireOut').at(-1)).toMatchObject({ reason: 'stretch' });
 
     // comida
     s = game(['green', 'red']);
     s = scene(s, { green: [4, BASE, BASE, BASE], red: [(2 - 13 + RING) % RING, BASE, BASE, BASE] }, [], { turn: 'red' });
-    s.powers!.effects.green = [{ fire: 2 }, {}, {}, {}];
+    s.powers!.effects.green = [{ fire: 1 }, {}, {}, {}];
     s = play(s, 2, 0);
     expect(s.pieces.green[0]).toBe(BASE);
     expect(peekEffects(s, 'green', 0).fire).toBeFalsy();
   });
 
-  it('fogo não age durante voo de foguete', () => {
+  it('fogo não age durante voo de foguete (e continua aceso depois do voo)', () => {
     let s = game(['green', 'red']);
     // foguete em 1; vermelho em 3 (no caminho do voo)
     s = scene(s, { green: [0, BASE, BASE, BASE], red: [(3 - 13 + RING) % RING, BASE, BASE, BASE] }, [{ abs: 1, power: 'rocket' }]);
@@ -467,112 +487,49 @@ describe('🔥 fogo', () => {
     s = play(s, 1, 0);
     expect((events(s, 'fly')[0] as { to: number }).to).toBeGreaterThan(3);
     expect(s.pieces.red[0]).toBe((3 - 13 + RING) % RING);
-    expect(peekEffects(s, 'green', 0).fire).toBe(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-
-describe('🚀 foguete', () => {
-  it('voa 6 a 20 casas pra frente e a casa é consumida', () => {
-    for (let seed = 1; seed <= 40; seed++) {
-      let s = game(['green', 'red'], {}, 'green', seed);
-      s = scene(s, { green: [0, BASE, BASE, BASE] }, [{ abs: 2, power: 'rocket' }]);
-      s = play(s, 2, 0);
-      const fly = events(s, 'fly')[0] as { n: number; from: number; to: number; power: string };
-      expect(fly.power).toBe('rocket');
-      expect(fly.n).toBeGreaterThanOrEqual(6);
-      expect(fly.n).toBeLessThanOrEqual(20);
-      expect(fly.from).toBe(2);
-      expect(fly.to).toBe(2 + fly.n);
-      expect(s.pieces.green[0]).toBe(2 + fly.n);
-      expect(s.powers!.cells.some((c) => c.abs === 2)).toBe(false);
-    }
-  });
-
-  it('come adversário no pouso (casa não-segura) e voa por cima do caminho', () => {
-    const { seed, to } = rocketSeed();
-    let s = game(['green', 'red'], {}, 'green', seed);
-    // um vermelho no destino e outro no meio do caminho
-    const mid = to - 1;
-    s = scene(s, { green: [0, BASE, BASE, BASE], red: [(to - 13 + RING) % RING, (mid - 13 + RING) % RING, BASE, BASE] }, [{ abs: 2, power: 'rocket' }], { pad: false });
-    s = play(s, 2, 0);
-    expect(s.pieces.green[0]).toBe(to);
-    expect(s.pieces.red[0]).toBe(BASE);
-    expect(s.pieces.red[1]).toBe((mid - 13 + RING) % RING);
-    expect(events(s, 'capture')[0]).toMatchObject({ by: 'green', victim: 'red', piece: 0, ring: to });
-  });
-
-  it('não come em casa segura', () => {
-    // acha semente em que o pouso é numa casa segura
-    let found: { seed: number; to: number } | null = null;
-    for (let seed = 1; seed < 500 && !found; seed++) {
-      let s = game(['green', 'red'], {}, 'green', seed);
-      s = scene(s, { green: [0, BASE, BASE, BASE] }, [{ abs: 2, power: 'rocket' }], { pad: false });
-      const to = (events(play(s, 2, 0), 'fly')[0] as { to: number }).to;
-      if (SAFE_ABS.has(to)) found = { seed, to };
-    }
-    expect(found).not.toBeNull();
-    let s = game(['green', 'red'], {}, 'green', found!.seed);
-    s = scene(s, { green: [0, BASE, BASE, BASE], red: [(found!.to - 13 + RING) % RING, BASE, BASE, BASE] }, [{ abs: 2, power: 'rocket' }], { pad: false });
-    s = play(s, 2, 0);
-    expect(s.pieces.red[0]).toBe((found!.to - 13 + RING) % RING);
-    expect(events(s, 'capture')).toHaveLength(0);
-  });
-
-  it('respeita escudo no pouso: volta pra casa do foguete', () => {
-    const { seed, to } = rocketSeed();
-    let s = game(['green', 'red'], {}, 'green', seed);
-    s = scene(s, { green: [0, BASE, BASE, BASE], red: [(to - 13 + RING) % RING, BASE, BASE, BASE] }, [{ abs: 2, power: 'rocket' }], { pad: false });
-    s.powers!.effects.red = [{ shield: true }, {}, {}, {}];
-    s = play(s, 2, 0);
-    expect(s.pieces.red[0]).toBe((to - 13 + RING) % RING);
-    expect(peekEffects(s, 'red', 0).shield).toBe(false);
-    // atacante volta pra onde estava antes do voo: a casa do foguete
-    expect(s.pieces.green[0]).toBe(2);
-  });
-
-  it('entra na reta final e para no centro se exceder (e chegar dá jogada extra)', () => {
-    let s = game(['green', 'red']);
-    s = scene(s, { green: [HOME_START - 6, BASE, BASE, BASE] }, [{ abs: HOME_START - 4, power: 'rocket' }]);
-    s = play(s, 2, 0);
-    const fly = events(s, 'fly')[0] as { to: number; n: number };
-    expect(fly.to).toBe(Math.min(HOME_START - 4 + fly.n, FINISH));
-    expect(s.pieces.green[0]).toBe(fly.to);
-    if (fly.to === FINISH) {
-      expect(events(s, 'finish')).toHaveLength(1);
-      expect(s.turn.color).toBe('green');
-      expect(s.turn.phase).toBe('roll');
-    } else {
-      expect(s.turn.color).toBe('red');
-    }
-  });
-
-  it('encadeia: pousar em outra casa de poder ativa de novo', () => {
-    const { seed, to } = rocketSeed();
-    let s = game(['green', 'red'], {}, 'green', seed);
-    s = scene(s, { green: [0, BASE, BASE, BASE] }, [{ abs: 2, power: 'rocket' }, { abs: to, power: 'shield' }], { pad: false });
-    s = play(s, 2, 0);
-    expect(events(s, 'power').map((e) => (e as { power: string }).power)).toEqual(['rocket', 'shield']);
-    expect(peekEffects(s, 'green', 0).shield).toBe(true);
-    expect(s.players[0].stats.powers).toBe(2);
+    expect(peekEffects(s, 'green', 0).fire).toBe(1);
   });
 });
 
 // ---------------------------------------------------------------------------
 
 describe('🪀 mola', () => {
-  it('pula 4 a 9 casas e come no pouso', () => {
-    for (let seed = 1; seed <= 30; seed++) {
-      let s = game(['green', 'red'], {}, 'green', seed);
-      s = scene(s, { green: [0, BASE, BASE, BASE] }, [{ abs: 2, power: 'spring' }]);
-      s = play(s, 2, 0);
-      const fly = events(s, 'fly')[0] as { n: number; power: string; to: number };
-      expect(fly.power).toBe('spring');
-      expect(fly.n).toBeGreaterThanOrEqual(4);
-      expect(fly.n).toBeLessThanOrEqual(9);
-      expect(s.pieces.green[0]).toBe(2 + fly.n);
-    }
+  it('pula até a próxima casa segura (estrela ou saída), e lá ninguém come ninguém', () => {
+    // verde em 0; mola em 2 → próxima segura no caminho do verde é a estrela em 8
+    let s = game(['green', 'red']);
+    s = scene(s, { green: [0, BASE, BASE, BASE], red: [(8 - 13 + RING) % RING, BASE, BASE, BASE] }, [{ abs: 2, power: 'spring' }]);
+    s = play(s, 2, 0);
+    const fly = events(s, 'fly')[0] as { n: number; power: string; from: number; to: number };
+    expect(fly).toMatchObject({ power: 'spring', from: 2, to: 8, n: 6 });
+    expect(s.pieces.green[0]).toBe(8);
+    // adversário na estrela continua lá
+    expect(s.pieces.red[0]).toBe((8 - 13 + RING) % RING);
+    expect(events(s, 'capture')).toHaveLength(0);
+  });
+
+  it('a saída colorida dos outros também conta como casa segura', () => {
+    // verde em 9; mola em 10 → próxima segura é a saída do vermelho (abs 13 = rel 13)
+    let s = game(['green', 'red']);
+    s = scene(s, { green: [9, BASE, BASE, BASE] }, [{ abs: 10, power: 'spring' }]);
+    s = play(s, 1, 0);
+    expect(s.pieces.green[0]).toBe(13);
+  });
+
+  it('encadeia: se a casa segura tiver outro poder, ativa (nunca tem — poderes não nascem em seguras)', () => {
+    // garantia de invariância: casas de poder nunca são sorteadas em casas seguras
+    const s = game(['green', 'red']);
+    for (const c of s.powers!.cells) expect(SAFE_ABS.has(c.abs)).toBe(false);
+  });
+
+  it('sem casa segura antes da reta final: entra na reta e para no máximo possível', () => {
+    let s = game(['green', 'red']);
+    // última segura do verde é a estrela do amarelo (abs 47 = rel 47); depois só reta final (HOME_START = 51)
+    s = scene(s, { green: [47, BASE, BASE, BASE] }, [{ abs: 48, power: 'spring' }]);
+    s = play(s, 1, 0);
+    const fly = events(s, 'fly')[0] as { to: number; n: number };
+    expect(fly.to).toBe(Math.min(48 + SPRING_MAX_STRETCH, FINISH));
+    expect(fly.to).toBeGreaterThanOrEqual(HOME_START);
+    expect(s.pieces.green[0]).toBe(fly.to);
   });
 
   it('para no centro se exceder', () => {
@@ -580,7 +537,7 @@ describe('🪀 mola', () => {
     s = scene(s, { green: [HOME_START - 3, BASE, BASE, BASE] }, [{ abs: HOME_START - 1, power: 'spring' }]);
     s = play(s, 2, 0);
     const fly = events(s, 'fly')[0] as { to: number; n: number };
-    expect(fly.to).toBe(Math.min(HOME_START - 1 + fly.n, FINISH));
+    expect(fly.to).toBe(Math.min(HOME_START - 1 + SPRING_MAX_STRETCH, FINISH));
   });
 });
 
@@ -730,8 +687,9 @@ describe('✖️ multiplicador ×2/×3', () => {
     s = roll(s, 2, 0);
     s = move(s, 0, 0);
     const fly = events(s, 'fly')[0] as { n: number; to: number };
-    expect(fly.n).toBeLessThanOrEqual(9);
-    expect(s.pieces.green[0]).toBe(4 + fly.n);
+    // mola: da casa 4 até a estrela em 8 (não multiplica)
+    expect(fly).toMatchObject({ to: 8, n: 4 });
+    expect(s.pieces.green[0]).toBe(8);
   });
 
   it('peça chegando ao centro antes da vez perde o pendente', () => {

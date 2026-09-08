@@ -133,7 +133,7 @@ O peão tem **~0,9 célula de altura** e fica com os pés no centro da casa
 
 | Arquivo | Efeito | Tamanho do quadro na tela | Posição | Como desenhar |
 |---|---|---|---|---|
-| `fire@12.png` | **Peão em chamas** (poder 🔥, dura 1 rodada) | 1,1 célula | centrado no peão, um pouco acima (o fogo sobe) | Chamas **saindo de baixo pra cima**, com a **base das chamas na metade inferior do quadro** e a parte de cima do quadro livre pra fagulhas. É desenhado **por cima** do peão, então deixe o **meio semi-transparente** (a gente precisa ver a cor do peão através do fogo). Loop 8–12 quadros. |
+| `fire@12.png` | **Peão em chamas** (poder 🔥, fica aceso até queimar alguém) | 1,1 célula | centrado no peão, um pouco acima (o fogo sobe) | Chamas **saindo de baixo pra cima**, com a **base das chamas na metade inferior do quadro** e a parte de cima do quadro livre pra fagulhas. É desenhado **por cima** do peão, então deixe o **meio semi-transparente** (a gente precisa ver a cor do peão através do fogo). Loop 8–12 quadros. |
 | `shield@12.png` | **Escudo** ativo | 1,2 célula | centrado no peão | Bolha/anel azulado (`#4a90d9`) **transparente no meio**, brilho girando ou pulsando na borda. É desenhado **atrás** do peão. Loop suave, 8–16 quadros. |
 | `freeze@8.png` | **Congelado** (não pode mover) | 1,1 célula | centrado no peão | Bloco de gelo / cristais cobrindo o peão, **semi-transparente** (~60%), brilhinhos piscando devagar. Por cima do peão. Loop lento. |
 | `boom@16.png` | **Explosão** (bomba, mega bomba, mina) — *ainda não ligado; deixo pronto pra próxima leva* | 1,6 célula (bomba) / 3 células (mega) | centrada na casa | Explosão clássica: flash → bola de fogo → fumaça sumindo. **Toca uma vez**, 12–24 quadros, último quadro transparente. |

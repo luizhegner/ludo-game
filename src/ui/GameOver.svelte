@@ -34,7 +34,7 @@
 
 <div class="backdrop">
   <div class="card panel">
-    <h1>{game.endReason === 'abandoned' ? 'Partida encerrada' : 'Fim de jogo'}</h1>
+    <h1>{game.endReason === 'abandoned' ? 'Partida encerrada' : game.endReason === 'time' ? '⏱ Acabou o tempo!' : 'Fim de jogo'}</h1>
     {#if game.placements}
       <ol class="podium">
         {#each rows as r (r.color)}

@@ -44,3 +44,12 @@ export function plural(n: number, one: string, many: string): string {
 export function percent(x: number): string {
   return `${Math.round(x * 100)}%`;
 }
+
+/** Cronômetro "m:ss" (arredonda pra cima: 0,3 s ainda mostra 0:01). */
+export function fmtClock(ms: number): string {
+  if (!Number.isFinite(ms)) return '–:––';
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}

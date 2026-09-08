@@ -217,11 +217,20 @@
     {/if}
 
     <ul class="fixed muted">
-      <li>Sai da base só com 6 · 6 joga de novo · três 6 seguidos: última peça movida volta pra base e perde a vez</li>
+      {#if mode === 'fiveMin'}
+        <li><b>Todas as peças começam fora</b>, empilhadas na saída · qualquer número move · 6 joga de novo · três 6 seguidos: última peça movida volta pra base e perde a vez</li>
+      {:else}
+        <li>Sai da base só com 6 · 6 joga de novo · três 6 seguidos: última peça movida volta pra base e perde a vez</li>
+      {/if}
       <li>Casas seguras: saída de cada cor e as 4 estrelas</li>
-      <li>Centro só com número exato</li>
+      <li>Centro só com número exato · quem coloca uma peça no centro joga de novo</li>
       {#if mode === 'quick'}
         <li>Vence quem colocar o <b>primeiro peão</b> no centro</li>
+      {:else if mode === 'fiveMin'}
+        <li><b>Cronômetro de 5:00</b> (começa no primeiro lançamento; pausa com o menu aberto). Acabou o tempo: colocação por <b>peças no centro</b>, desempate por progresso</li>
+      {:else if info.teams}
+        <li>Vence a dupla que colocar as <b>8 peças</b> no centro · quem termina as 4 continua jogando <b>com as peças do parceiro</b></li>
+        <li>Cair na casa do parceiro <b>come</b> normalmente (azar){info.powers ? ' · fogo não queima o parceiro · mega bomba pega todo mundo' : ''}</li>
       {:else}
         <li>A partida continua até sobrar um</li>
       {/if}

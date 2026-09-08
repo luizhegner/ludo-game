@@ -92,6 +92,11 @@ class MatchStore {
   status = $state('');
   /** Explicação de um poder (segurar o dedo na casa); some sozinha. */
   info: { power: Power } | null = $state.raw(null);
+  /** Cronômetro (modos com tempo): ms restantes, atualizado a cada tique. */
+  remainingMs = $state(Infinity);
+  /** Quem pediu pausa do relógio (menu aberto, app em segundo plano). */
+  private clockHolds = new Set<string>();
+  private ticker: ReturnType<typeof setInterval> | null = null;
 
   private toastId = 0;
   private timers = new Set<ReturnType<typeof setTimeout>>();
@@ -101,7 +106,96 @@ class MatchStore {
     if (this.state) {
       this.diceFace = lastFace(this.state);
       this.refreshStatus();
+      // ao reabrir o app, o relógio só volta a correr no próximo lançamento
+      if (this.state.clock?.runningSince !== null && this.state.clock) {
+        this.state = engine.pauseClock(this.state);
+        persist(this.state);
+      }
     }
+    this.tick();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) this.holdClock('hidden');
+        else this.releaseClock('hidden');
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Cronômetro
+  // -------------------------------------------------------------------------
+
+  /** Tem cronômetro nesta partida. */
+  get timed(): boolean {
+    return !!this.state?.clock;
+  }
+
+  /** Pausa o relógio enquanto `who` estiver segurando (menu, segundo plano). */
+  holdClock(who: string): void {
+    this.clockHolds.add(who);
+    if (!this.state?.clock) return;
+    const paused = engine.pauseClock(this.state);
+    if (paused !== this.state) {
+      this.state = paused;
+      persist(paused);
+    }
+    this.tick();
+  }
+
+  /** Solta a pausa; se ninguém mais segura e a partida já tinha começado, volta a correr. */
+  releaseClock(who: string): void {
+    this.clockHolds.delete(who);
+    if (this.clockHolds.size || !this.state?.clock || !this.active) return;
+    if (this.state.clock.elapsedMs === 0) return; // ainda não começou (começa no primeiro lançamento)
+    const started = engine.startClock(this.state);
+    if (started !== this.state) {
+      this.state = started;
+      persist(started);
+    }
+    this.tick();
+  }
+
+  /** Atualiza `remainingMs` e fecha a partida quando o tempo acaba (depois das animações). */
+  private tick(): void {
+    const s = this.state;
+    if (!s?.clock || s.turn.phase === 'over') {
+      const v = s?.clock ? engine.remainingMs(s) : Infinity;
+      if (v !== this.remainingMs) this.remainingMs = v;
+      this.stopTicker();
+      return;
+    }
+    const rem = engine.remainingMs(s);
+    if (Math.ceil(rem / 1000) !== Math.ceil(this.remainingMs / 1000)) this.remainingMs = rem;
+    if (rem <= 0) {
+      if (this.busy) {
+        // deixa a jogada em andamento terminar; o próximo commit fecha
+        this.startTicker();
+        return;
+      }
+      this.stopTicker();
+      const before = s;
+      const after = engine.timeUp(before);
+      if (after !== before) {
+        sound.play('victory');
+        haptic('victory');
+        this.toast('⏱ Acabou o tempo!');
+        this.commit(after, false, before);
+      }
+      return;
+    }
+    if (s.clock.runningSince !== null) this.startTicker();
+    else this.stopTicker();
+  }
+
+  private startTicker(): void {
+    if (this.ticker !== null || typeof setInterval === 'undefined') return;
+    // 250 ms pra virar o segundo no momento certo; `remainingMs` só é reescrito quando o segundo muda
+    this.ticker = setInterval(() => this.tick(), 250);
+  }
+  private stopTicker(): void {
+    if (this.ticker === null) return;
+    clearInterval(this.ticker);
+    this.ticker = null;
   }
 
   get active(): boolean {
@@ -120,6 +214,7 @@ class MatchStore {
     this.toasts = [];
     persist(this.state);
     this.refreshStatus();
+    this.tick();
     // lembra a configuração pra "Nova partida" já vir pré-preenchida (vale pra revanche também)
     const slots = { ...EMPTY_SLOTS };
     for (const p of cfg.players) slots[p.color] = p.playerId;
@@ -138,11 +233,16 @@ class MatchStore {
     this.state = null;
     this.toasts = [];
     persist(null);
+    this.tick();
   }
 
   /** Rola o dado; `forced` vem do dado físico em modo "física real". */
   roll(forced?: number): void {
     if (!this.state || this.state.turn.phase !== 'roll' || this.busy) return;
+    if (engine.isTimeUp(this.state)) {
+      this.tick();
+      return;
+    }
     const before = this.state;
     const after = engine.roll(before, forced);
     const value = rolledValue(before, after);
@@ -210,7 +310,7 @@ class MatchStore {
    * Se a peça voltou pra base (bomba, mina, escudo…), o voo de volta vem no fim.
    */
   private animateMove(before: GameState, after: GameState, piece: number): void {
-    const color = before.turn.color;
+    const color = engine.piecesColorFor(before, before.turn.color);
     const from = before.pieces[color][piece];
     const fresh = after.log.slice(before.log.length);
 
@@ -376,10 +476,10 @@ class MatchStore {
     if (s.turn.phase !== 'move') return;
     if (!settings.autoMove) return;
     const legal = s.turn.legal;
-    const color = s.turn.color;
-    // uma jogada só, ou várias equivalentes (todas as peças legais ainda na base)
-    const allInBase = legal.length > 0 && legal.every((i) => s.pieces[color][i] === BASE);
-    if (legal.length === 1 || allInBase) {
+    const color = engine.piecesColorFor(s, s.turn.color);
+    // uma jogada só, ou várias equivalentes (todas as peças legais na mesma casa: base, ou empilhadas na saída no 5 Minutos)
+    const samePlace = legal.length > 0 && legal.every((i) => s.pieces[color][i] === s.pieces[color][legal[0]]);
+    if (legal.length === 1 || samePlace) {
       this.autoPending = true;
       this.later(() => {
         this.autoPending = false;
@@ -407,6 +507,7 @@ class MatchStore {
     if (withToasts && prev) this.emitToasts(prev, after);
     if (prev) this.animateHome(prev, after);
     this.refreshStatus();
+    this.tick();
   }
 
   /** Peças que voltaram pra base ganham a classe `home` por um instante. */
@@ -474,6 +575,9 @@ class MatchStore {
           sound.play('turn');
           haptic('turn');
           break;
+        case 'partnerTurn':
+          this.toast(`${name(e.color)} joga com as peças de ${name(e.forPartner)}`, e.color);
+          break;
       }
     }
   }
@@ -493,7 +597,7 @@ class MatchStore {
     const me = engine.currentPlayer(s)?.name ?? '';
     switch (s.turn.phase) {
       case 'roll': {
-        const pend = s.powers?.pending[s.turn.color];
+        const pend = s.powers?.pending[engine.piecesColorFor(s, s.turn.color)];
         if (pend?.armed) this.status = `${me}: lance o dado — a peça anda ×${pend.factor}`;
         else this.status = s.turn.sixStreak > 0 ? `${me}: tirou 6, joga de novo` : `${me}: lance o dado`;
         break;

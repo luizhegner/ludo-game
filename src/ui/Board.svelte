@@ -14,11 +14,12 @@
   } from '../engine/board';
   import { COLOR_HEX, COLOR_DARK, COLOR_LIGHT, COLOR_ON } from '../lib/colors';
   import { isPhoto } from '../lib/avatars';
-  import { destination, playerOf, progress } from '../engine/game';
+  import { controllerOf, destination, piecesColorFor, playerOf, progress } from '../engine/game';
   import { peekEffects } from '../engine/powers';
   import { POWER_ICON, powerBg, powerBorder } from '../lib/powers';
   import { powerIconUrl } from '../lib/art.svelte';
   import { players as roster } from '../stores/players.svelte';
+  import { settings } from '../stores/settings.svelte';
   import Pawn from './Pawn.svelte';
   import type { Moving } from '../stores/match.svelte';
 
@@ -68,7 +69,20 @@
     return () => ro.disconnect();
   });
 
-  const turn = $derived(game.turn.color);
+  /** Tema "OG": visual do jogo original (moldura de madeira, bases chapadas, anel creme). */
+  const og = $derived(settings.theme === 'og');
+  /** Cores das bases no OG: mais saturadas/chapadas; anel creme com grade cinza-clara. */
+  const OG_HEX: Record<Color, string> = { green: '#2db84d', red: '#ef3b36', blue: '#1e88e5', yellow: '#f7d51d' };
+  const OG_INNER: Record<Color, string> = { green: '#27a343', red: '#d9302c', blue: '#1976cf', yellow: '#e6c414' };
+  const OG_SLOT: Record<Color, string> = { green: '#229a3c', red: '#c8281f', blue: '#166cbd', yellow: '#d8b60f' };
+  const hex = $derived(og ? OG_HEX : COLOR_HEX);
+  const ringFill = $derived(og ? '#f3efe4' : '#fff');
+  const gridStroke = $derived(og ? '#cfc8ba' : '#2b2f3a');
+  const gridWidth = $derived(og ? 0.035 : 0.045);
+  /** Cor cujas peças se movem nesta vez (no 2v2 pode ser a do parceiro). */
+  const turn = $derived(piecesColorFor(game, game.turn.color));
+  /** Cor de quem está jogando (base que brilha). */
+  const actor = $derived(controllerOf(game, game.turn.color));
   const present = $derived(new Set(game.players.filter((p) => p.status !== 'removed').map((p) => p.color)));
 
   /** Casas de poder visíveis (minas escondidas não aparecem). */
@@ -193,6 +207,21 @@
     return out;
   });
 
+  /** OG: rastro "fantasma" nas 3 casas anteriores da peça que está andando casa a casa. */
+  const trail = $derived.by(() => {
+    if (!og || !moving || moving.flying) return [] as { x: number; y: number; k: number; o: number }[];
+    const out: { x: number; y: number; k: number; o: number }[] = [];
+    // início do trecho: from = pos - step; só casas do anel/reta (nunca a base)
+    const start = moving.pos - moving.step;
+    for (let d = 1; d <= 3; d++) {
+      const p = moving.pos - d;
+      if (p < 0 || p < start) break;
+      const c = cellOf(moving.color, p, moving.piece);
+      out.push({ x: c.x, y: c.y, k: p, o: 0.45 - d * 0.12 });
+    }
+    return out;
+  });
+
   function star(cx: number, cy: number, R: number): string {
     const pts: string[] = [];
     for (let i = 0; i < 10; i++) {
@@ -223,7 +252,7 @@
     const x1 = o.col + 6 - inset;
     const y1 = o.row + 6 - inset;
     // raio do tabuleiro (14px) em células, menos o recuo → canto externo concêntrico
-    const R = Math.max(0.35, (14 / size) * 15 - inset);
+    const R = Math.max(0.35, ((og ? 6 : 14) / size) * 15 - inset);
     const r = 0.22; // cantos internos
     // qual canto é o externo: verde ↖, vermelho ↗, azul ↘, amarelo ↙
     const rr = { tl: r, tr: r, br: r, bl: r };
@@ -255,7 +284,8 @@
   };
 </script>
 
-<div class="board" bind:this={el}>
+<div class="board" class:og>
+  <div class="inner" bind:this={el}>
   <svg viewBox="0 0 15 15" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
     <defs>
       <filter id="pawn-shadow" x="-40%" y="-40%" width="180%" height="200%">
@@ -272,23 +302,28 @@
           <stop offset="1" stop-color={COLOR_DARK[c]} />
         </radialGradient>
       {/each}
+      <radialGradient id="og-glow" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#fff" stop-opacity="0.55" />
+        <stop offset="0.45" stop-color="#fff" stop-opacity="0.22" />
+        <stop offset="1" stop-color="#fff" stop-opacity="0" />
+      </radialGradient>
       <clipPath id="avatar-clip" clipPathUnits="objectBoundingBox">
         <circle cx="0.5" cy="0.5" r="0.5" />
       </clipPath>
     </defs>
 
-    <rect x="0" y="0" width="15" height="15" fill="#fff" />
+    <rect x="0" y="0" width="15" height="15" fill={ringFill} />
 
     <!-- anel -->
     {#each RING_CELLS as c, i}
       {@const sc = ringColorOf(i)}
-      <rect x={c.col} y={c.row} width="1" height="1" fill={sc ? COLOR_HEX[sc] : '#fff'} stroke="#2b2f3a" stroke-width="0.045" />
+      <rect x={c.col} y={c.row} width="1" height="1" fill={sc ? hex[sc] : ringFill} stroke={gridStroke} stroke-width={gridWidth} />
     {/each}
 
     <!-- retas finais -->
     {#each COLORS as k}
       {#each HOME_CELLS[k] as c}
-        <rect x={c.col} y={c.row} width="1" height="1" fill={COLOR_HEX[k]} stroke="#2b2f3a" stroke-width="0.045" />
+        <rect x={c.col} y={c.row} width="1" height="1" fill={hex[k]} stroke={gridStroke} stroke-width={gridWidth} />
       {/each}
     {/each}
 
@@ -297,9 +332,9 @@
       {@const st = starColorOf(i)}
       {@const sc = ringColorOf(i)}
       {#if st}
-        <polygon points={star(c.col + 0.5, c.row + 0.5, 0.36)} fill={COLOR_HEX[st]} opacity="0.9" />
+        <polygon points={star(c.col + 0.5, c.row + 0.5, og ? 0.4 : 0.36)} fill={hex[st]} opacity={og ? 1 : 0.9} stroke={og ? COLOR_DARK[st] : 'none'} stroke-width="0.02" stroke-linejoin="round" />
       {:else if sc}
-        <polygon points={star(c.col + 0.5, c.row + 0.5, 0.32)} fill="#fff" />
+        <polygon points={star(c.col + 0.5, c.row + 0.5, og ? 0.36 : 0.32)} fill="#fff" />
       {/if}
     {/each}
 
@@ -341,73 +376,110 @@
     {/each}
 
     <!-- centro -->
-    <polygon points="6,6 9,6 7.5,7.5" fill={COLOR_HEX.red} />
-    <polygon points="9,6 9,9 7.5,7.5" fill={COLOR_HEX.blue} />
-    <polygon points="9,9 6,9 7.5,7.5" fill={COLOR_HEX.yellow} />
-    <polygon points="6,9 6,6 7.5,7.5" fill={COLOR_HEX.green} />
-    <rect x="6" y="6" width="3" height="3" fill="none" stroke="#2b2f3a" stroke-width="0.045" />
+    <polygon points="6,6 9,6 7.5,7.5" fill={hex.red} />
+    <polygon points="9,6 9,9 7.5,7.5" fill={hex.blue} />
+    <polygon points="9,9 6,9 7.5,7.5" fill={hex.yellow} />
+    <polygon points="6,9 6,6 7.5,7.5" fill={hex.green} />
+    <rect x="6" y="6" width="3" height="3" fill="none" stroke={gridStroke} stroke-width={gridWidth} />
 
     <!-- bases -->
     {#each COLORS as k}
       {@const o = BASE_ORIGIN[k]}
       {@const p = playerOf(game, k)}
       {@const active = p && p.status !== 'removed'}
-      {@const isTurn = k === turn && game.turn.phase !== 'over'}
+      {@const isTurn = k === actor && game.turn.phase !== 'over'}
       <g class="base" class:empty={!active}>
-        <rect x={o.col} y={o.row} width="6" height="6" fill={COLOR_HEX[k]} />
-        {#if isTurn}
-          <path class="turn-glow" d={baseOutline(k, 0.2)} fill="none" stroke="#fff" stroke-width="0.16" stroke-linejoin="round" />
+        <rect x={o.col} y={o.row} width="6" height="6" fill={hex[k]} />
+        {#if og}
+          <!-- OG: quadrado interno na mesma cor, um tom mais escuro, e 4 círculos marcando as vagas -->
+          <rect x={o.col + 0.9} y={o.row + 0.9} width="4.2" height="4.2" rx="0.5" fill={OG_INNER[k]} opacity={active ? 1 : 0.7} />
+          {#each BASE_SLOTS as s}
+            <circle cx={o.col + s.dc} cy={o.row + s.dr} r="0.5" fill={OG_SLOT[k]} />
+          {/each}
+          {#if isTurn}
+            <!-- pulso radial branco no meio do quadrante (jogador da vez) -->
+            <circle class="og-pulse" cx={o.col + 3} cy={o.row + 3} r="2.6" fill="url(#og-glow)" />
+          {/if}
+        {:else}
+          {#if isTurn}
+            <path class="turn-glow" d={baseOutline(k, 0.2)} fill="none" stroke="#fff" stroke-width="0.16" stroke-linejoin="round" />
+          {/if}
+          <rect x={o.col + 0.9} y={o.row + 0.9} width="4.2" height="4.2" rx="0.35" fill="#fff" filter="url(#soft)" opacity={active ? 1 : 0.55} />
+          {#each BASE_SLOTS as s}
+            <circle cx={o.col + s.dc} cy={o.row + s.dr} r="0.62" fill={COLOR_LIGHT[k]} stroke={COLOR_DARK[k]} stroke-width="0.05" opacity="0.9" />
+          {/each}
         {/if}
-        <rect x={o.col + 0.9} y={o.row + 0.9} width="4.2" height="4.2" rx="0.35" fill="#fff" filter="url(#soft)" opacity={active ? 1 : 0.55} />
-        {#each BASE_SLOTS as s}
-          <circle cx={o.col + s.dc} cy={o.row + s.dr} r="0.62" fill={COLOR_LIGHT[k]} stroke={COLOR_DARK[k]} stroke-width="0.05" opacity="0.9" />
-        {/each}
         {#if p && active}
           {@const avatar = roster.avatarOf(p.playerId, p.avatar)}
           {@const name = roster.nameOf(p.playerId, p.name)}
-          {#if isPhoto(avatar)}
-            <!-- foto: círculo recortado + nome ao lado -->
-            <image
-              href={avatar}
-              x={o.col + 0.55}
-              y={o.row + 5.18}
-              width="0.72"
-              height="0.72"
-              clip-path="url(#avatar-clip)"
-              preserveAspectRatio="xMidYMid slice"
-            />
-            <circle cx={o.col + 0.91} cy={o.row + 5.54} r="0.36" fill="none" stroke="#fff" stroke-width="0.06" />
-            <text
-              x={o.col + 1.45}
-              y={o.row + 5.74}
-              text-anchor="start"
-              font-size="0.58"
-              font-weight="700"
-              fill={COLOR_ON[k]}
-              style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.05"
-            >
-              {name.length > 10 ? name.slice(0, 9) + '…' : name}
-            </text>
-          {:else}
+          {@const outer = k === 'green' || k === 'red' ? o.row + 0.72 : o.row + 5.62}
+          {@const inner = k === 'green' || k === 'red' ? o.row + 5.62 : o.row + 0.66}
+          {#if og}
+            <!-- OG: nome na borda externa do quadrante (longe do centro), % e ⚔/☠ na borda interna -->
             <text
               x={o.col + 3}
-              y={o.row + 5.62}
+              y={outer}
               text-anchor="middle"
               font-size="0.6"
-              font-weight="700"
-              fill={COLOR_ON[k]}
-              style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.05"
+              font-weight="800"
+              fill="#fff"
+              style="paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:.07"
             >
-              {avatar} {name.length > 11 ? name.slice(0, 10) + '…' : name}
+              {name.length > 12 ? name.slice(0, 11) + '…' : name}
             </text>
-          {/if}
-          <text x={o.col + 3} y={o.row + 0.66} text-anchor="middle" font-size="0.48" font-weight="700" fill={COLOR_ON[k]} opacity="0.9">
-            {Math.round(progress(game, k) * 100)}%
-          </text>
-          {#if p.stats.captures || p.stats.deaths}
-            <text x={o.col + 5.75} y={o.row + 0.66} text-anchor="end" font-size="0.4" font-weight="700" fill={COLOR_ON[k]} opacity="0.85">
-              ⚔{p.stats.captures} ☠{p.stats.deaths}
+            <text x={o.col + 3} y={inner} text-anchor="middle" font-size="0.5" font-weight="800" fill="#fff" style="paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:.06">
+              {Math.round(progress(game, k) * 100)}%
             </text>
+            {#if p.stats.captures || p.stats.deaths}
+              <text x={o.col + 5.75} y={inner} text-anchor="end" font-size="0.4" font-weight="700" fill="#fff" opacity="0.9" style="paint-order:stroke;stroke:rgba(0,0,0,.4);stroke-width:.05">
+                ⚔{p.stats.captures} ☠{p.stats.deaths}
+              </text>
+            {/if}
+          {:else}
+          {#if isPhoto(avatar)}
+              <!-- foto: círculo recortado + nome ao lado -->
+              <image
+                href={avatar}
+                x={o.col + 0.55}
+                y={o.row + 5.18}
+                width="0.72"
+                height="0.72"
+                clip-path="url(#avatar-clip)"
+                preserveAspectRatio="xMidYMid slice"
+              />
+              <circle cx={o.col + 0.91} cy={o.row + 5.54} r="0.36" fill="none" stroke="#fff" stroke-width="0.06" />
+              <text
+                x={o.col + 1.45}
+                y={o.row + 5.74}
+                text-anchor="start"
+                font-size="0.58"
+                font-weight="700"
+                fill={COLOR_ON[k]}
+                style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.05"
+              >
+                {name.length > 10 ? name.slice(0, 9) + '…' : name}
+              </text>
+            {:else}
+              <text
+                x={o.col + 3}
+                y={o.row + 5.62}
+                text-anchor="middle"
+                font-size="0.6"
+                font-weight="700"
+                fill={COLOR_ON[k]}
+                style="paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.05"
+              >
+                {avatar} {name.length > 11 ? name.slice(0, 10) + '…' : name}
+              </text>
+            {/if}
+            <text x={o.col + 3} y={o.row + 0.66} text-anchor="middle" font-size="0.48" font-weight="700" fill={COLOR_ON[k]} opacity="0.9">
+              {Math.round(progress(game, k) * 100)}%
+            </text>
+            {#if p.stats.captures || p.stats.deaths}
+              <text x={o.col + 5.75} y={o.row + 0.66} text-anchor="end" font-size="0.4" font-weight="700" fill={COLOR_ON[k]} opacity="0.85">
+                ⚔{p.stats.captures} ☠{p.stats.deaths}
+              </text>
+            {/if}
           {/if}
         {:else}
           <text x={o.col + 3} y={o.row + 5.62} text-anchor="middle" font-size="0.5" font-weight="600" fill={COLOR_ON[k]} opacity="0.7">
@@ -415,6 +487,11 @@
           </text>
         {/if}
       </g>
+    {/each}
+
+    <!-- OG: rastro fantasma da peça em movimento -->
+    {#each trail as t (t.k)}
+      <circle class="ghost" cx={t.x} cy={t.y + 0.06} r="0.3" fill={hex[moving!.color]} opacity={t.o} />
     {/each}
 
     <!-- destino(s) do movimento -->
@@ -449,17 +526,21 @@
   {#if overlay}
     <div class="overlay">{@render overlay(cell)}</div>
   {/if}
+  </div>
 </div>
 
 <style>
   .board {
-    position: relative;
     width: 100%;
-    aspect-ratio: 1;
     border-radius: 14px;
     overflow: hidden;
     background: #fff;
     box-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.45), 0 2px 0 rgba(0, 0, 0, 0.08);
+  }
+  .inner {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
   }
   svg {
     display: block;
@@ -474,6 +555,33 @@
   }
   .turn-glow {
     animation: pulse 1.4s ease-in-out infinite;
+  }
+  .og-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: og-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes og-pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+      transform: scale(0.85);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+  /* moldura de madeira do tema OG (o Board recebe a classe via GameScreen) */
+  .board.og {
+    border-radius: 12px;
+    background: linear-gradient(160deg, #6b3a22, #3e2013 60%, #2c150c);
+    padding: 2.2%;
+    box-shadow: 0 0 0 1px rgba(255, 220, 170, 0.12) inset, 0 22px 44px -16px rgba(0, 0, 0, 0.8);
+  }
+  .board.og svg {
+    border-radius: 6px;
+    overflow: hidden;
   }
   .target {
     animation: pulse 1s ease-in-out infinite;
