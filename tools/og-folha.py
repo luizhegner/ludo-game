@@ -9,15 +9,17 @@ Ordem padrão da folha (esquerda → direita), igual ao mapeamento combinado:
 
 Como funciona:
   1) se o PNG já tem alfa verdadeiro, usa o alfa como fundo;
-  2) senão, detecta as duas cores do xadrez nas bordas e o tamanho da casa
-     (runs de pixels ao longo das bordas), marca como candidato a fundo cada
-     pixel que bate com a cor esperada DAQUELA casa do xadrez (tolerância
-     `--tol`) e enxuga por flood-fill a partir das bordas — buraco branco
-     FECHADO dentro do ícone (corpo do foguete) não é comido;
-  3) corta em N colunas (segmentos contíguos de primeiro plano; se a conta
+  2) senão, detecta as duas cores do xadrez nas bordas; com xadrez ESCURO o
+     fundo é "qualquer cinza escuro" (casas, sombras e antialiasing), com o
+     xadrez CLARO é "perto de uma das duas cores" (tolerância `--tol`) — o
+     flood-fill por conectividade protege buracos fechados dentro do ícone
+     (tipo o miolo branco do foguete) e as partes claras/muitos-saturadas do
+     ícone nunca são confundidas com o fundo;
+  3) flood-fill a partir das bordas define o fundo; o resto é ícone;
+  4) corta em N colunas (segmentos contíguos de primeiro plano; se a conta
      não fechar em N, divide em partes iguais), centraliza o conteúdo em
      ~85% da tela (regra 2 do ARTE.md §1) e salva 128×128 otimizados;
-  4) `--contato` salva uma prévia da folha limpa + tira dos recortes, e
+  5) `--contato` salva uma prévia da folha limpa + tira dos recortes, e
      `--debug` salva a máscara crua — pra conferir de olho.
 
 Uso:
@@ -55,8 +57,8 @@ def dist(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
     return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5
 
 
-def border_colors(rgb: Image.Image, tol: int) -> 'tuple[tuple[int, int, int], tuple[int, int, int], int]':
-    """As duas cores dominantes do xadrez (mais clara primeiro) e o lado da casa."""
+def border_colors(rgb: Image.Image, tol: int) -> 'tuple[tuple[int, int, int], tuple[int, int, int]]':
+    """As duas cores dominantes do xadrez nas bordas da folha (mais clara primeiro)."""
     w, h = rgb.size
     px = rgb.load()
     band = max(2, min(w, h) // 50)
@@ -84,59 +86,48 @@ def border_colors(rgb: Image.Image, tol: int) -> 'tuple[tuple[int, int, int], tu
         a, b = b, a
     if dist(a, b) <= tol:  # as "duas cores" são a mesma → fundo sólido
         b = a
-
-    # tamanho da casa: mediana dos runs a/b ao longo de faixas de borda
-    def runs(seq: list[int]) -> int:
-        out = [1]
-        for i in range(1, len(seq)):
-            if seq[i] == seq[i - 1]:
-                out[-1] += 1
-            else:
-                out.append(1)
-        out = [r for r in out if r >= 3]
-        out.sort()
-        return out[len(out) // 2] if out else 0
-
-    sizes = []
-    for y in (band // 2, h - 1 - band // 2):
-        if 0 <= y < h:
-            sizes.append(runs([0 if dist(px[x, y], a) <= dist(px[x, y], b) else 1 for x in range(w)]))
-    for x in (band // 2, w - 1 - band // 2):
-        if 0 <= x < w:
-            sizes.append(runs([0 if dist(px[x, y], a) <= dist(px[x, y], b) else 1 for y in range(h)]))
-    sizes = [s for s in sizes if s]
-    size = max(3, min(max(sizes), 96)) if sizes else 16
-    return a, b, size
+    return a, b
 
 
-def make_mask(im: Image.Image, tol: int) -> 'tuple[Image.Image, str]':
-    """Máscara 'L' (255 = fundo, 0 = ícone). Usa alfa real se houver; senão, xadrez."""
-    w, h = im.size
-    if im.mode == 'RGBA':
-        px = im.load()
-        step = 17
-        clear = total = 0
-        for i in range(0, w * h, step):
-            p = px[i % w, i // w]
-            total += 1
-            if p[3] <= 8:
-                clear += 1
-        if total and clear / total > 0.05:
-            a = im.getchannel('A').point(lambda v: 255 if v <= 8 else 0)
-            return a, 'alfa'
-    rgb = im.convert('RGB')
-    ca, cb, cell = border_colors(rgb, tol)
+def checker_cand(rgb: Image.Image, ca: tuple[int, int, int], cb: tuple[int, int, int], tol: int) -> 'tuple[bytearray, str]':
+    """
+    Candidatos a fundo (bytearray w*h, 1 = parece o xadrez).
+
+    Xadrez ESCURO (casas ≤ 160): fundo é "qualquer cinza escuro" — vale pras
+    casas claras e escuras, pras sombras que os ícones projetam e pros pixels
+    de antialiasing; os cinzas dos ícones (prancheta ~150+, frisos ~216+) são
+    mais claros que a casa clara+folga e as cores vivas são saturadas, então
+    nada deles é comido. Xadrez CLARO: cada cor por vez (tolerância `--tol`),
+    que é o caso em que "branco do ícone" não pode ser confundido com fundo;
+    o flood-fill por conectividade protege o que estiver fechado dentro do
+    ícone (miolo branco do foguete, bolinha do meio da mina etc.).
+    """
+    w, h = rgb.size
     px = rgb.load()
-    # fase do xadrez: (0,0) é a cor mais clara ou a mais escura?
-    phase = 0 if dist(px[0, 0], ca) <= dist(px[0, 0], cb) else 1
-    cand = bytearray(w * h)  # 1 = parece o fundo daquela casa
-    for y in range(h):
-        base = y * w
-        for x in range(w):
-            e = ca if (((x // cell) + (y // cell) + phase) % 2) == 0 else cb
-            if dist(px[x, y], e) <= tol:
-                cand[base + x] = 1
-    # flood-fill 4-vizinhos a partir de todo pixel de borda candidato
+    cand = bytearray(w * h)
+    light = max(ca)
+    if light <= 160:  # xadrez escuro → regra do "cinza escuro"
+        lim = light + 23
+        for y in range(h):
+            base = y * w
+            for x in range(w):
+                p = px[x, y]
+                if max(p) - min(p) <= 12 and min(p) <= lim and max(p) <= lim:
+                    cand[base + x] = 1
+        how = f'xadrez escuro (casas {ca}/{cb}, cinza ≤ {lim})'
+    else:  # xadrez claro → por cor, com tolerância
+        for y in range(h):
+            base = y * w
+            for x in range(w):
+                p = px[x, y]
+                if dist(p, ca) <= tol or dist(p, cb) <= tol:
+                    cand[base + x] = 1
+        how = f'xadrez claro (cores {ca}/{cb}, tol {tol})'
+    return cand, how
+
+
+def flood_bg(cand: bytearray, w: int, h: int) -> bytearray:
+    """Fundo = candidatos alcançáveis a partir das bordas (flood-fill 4-vizinhos)."""
     seen = bytearray(w * h)
     q: deque[int] = deque()
 
@@ -162,8 +153,30 @@ def make_mask(im: Image.Image, tol: int) -> 'tuple[Image.Image, str]':
             push(i - w)
         if y < h - 1:
             push(i + w)
+    return seen
+
+
+def make_mask(im: Image.Image, tol: int) -> 'tuple[Image.Image, str]':
+    """Máscara 'L' (255 = fundo, 0 = ícone). Usa alfa real se houver; senão, xadrez."""
+    w, h = im.size
+    if im.mode == 'RGBA':
+        px = im.load()
+        step = 17
+        clear = total = 0
+        for i in range(0, w * h, step):
+            p = px[i % w, i // w]
+            total += 1
+            if p[3] <= 8:
+                clear += 1
+        if total and clear / total > 0.05:
+            a = im.getchannel('A').point(lambda v: 255 if v <= 8 else 0)
+            return a, 'alfa'
+    rgb = im.convert('RGB')
+    ca, cb = border_colors(rgb, tol)
+    cand, how = checker_cand(rgb, ca, cb, tol)
+    seen = flood_bg(cand, w, h)
     mask = Image.frombytes('L', (w, h), bytes((255 * v for v in seen)))
-    return mask, f'xadrez (cores {ca}/{cb}, casa {cell}px)'
+    return mask, how
 
 
 def split_columns(mask: Image.Image, n: int) -> 'list[tuple[int, int]]':
@@ -228,7 +241,7 @@ def cut_icon(rgb: Image.Image, mask: Image.Image, x0: int, x1: int) -> Image.Ima
 
 
 def parse(argv: list[str]) -> tuple[str, str, list[str], int, bool, bool]:
-    src = out_dir = ''
+    src = ''
     names: list[str] = []
     tol = TOL
     contato = debug = False
@@ -282,7 +295,8 @@ def main(argv: list[str]) -> None:
         icon = cut_icon(rgb, mask, x0, x1)
         out = os.path.join(out_dir, f'{name}.png')
         icon.save(out, optimize=True)
-        strip.paste(icon.resize((40, 40), Image.LANCZOS), (i * 40, 0), icon.resize((40, 40), Image.LANCZOS))
+        t = icon.resize((40, 40), Image.LANCZOS)
+        strip.paste(t, (i * 40, 0), t)
         print(f'{name:<12} col {x0:>4}–{x1:<4} → {out} ({os.path.getsize(out) // 1024 + 1} KB)')
     if debug:
         mask.save(os.path.splitext(src)[0] + '.mask.png')

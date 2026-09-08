@@ -266,6 +266,15 @@ describe('ajustes', () => {
     expect(packOrder('og')).toEqual(['og', 'default']);
   });
 
+  it('pacote de ícones: independente do tema, aceita default/og e ignora lixo', () => {
+    applySettings({ iconPack: 'og' });
+    expect(settings.iconPack).toBe('og');
+    expect(settings.theme).toBe('cream'); // não mexe no tema
+    applySettings({ iconPack: 'emoji' as unknown as Settings['iconPack'] });
+    expect(settings.iconPack).toBe('og');
+    applySettings({}, true);
+    expect(settings.iconPack).toBe('default');
+  });
 });
 
 describe('última configuração de partida', () => {

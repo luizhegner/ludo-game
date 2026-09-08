@@ -29,6 +29,7 @@
     void settings.diceMode;
     void settings.theme;
     void settings.soundPack;
+    void settings.iconPack;
     saveSettings();
   });
 
@@ -148,6 +149,12 @@
   <section>
     <h2>Aparência</h2>
     <div class="card group">
+      <Toggle
+        label="Ícones do jogo original"
+        hint="Troca os emojis dos poderes pela arte do jogo original (as casas mantêm o fundo colorido). Vale em qualquer tema; sem os arquivos na pasta, nada muda."
+        checked={settings.iconPack === 'og'}
+        onchange={(on) => (settings.iconPack = on ? 'og' : 'default')}
+      />
       <div class="radio">
         {#each THEMES as t (t.id)}
           <button class="opt" class:on={settings.theme === t.id} onclick={() => setTheme(t.id)}>

@@ -4,6 +4,8 @@ export type HapticsLevel = 'off' | 'soft' | 'normal';
 export type Theme = 'cream' | 'aurora' | 'og';
 /** Pacote de sons: 'default' = seus samples em `public/sounds/` (ou sintetizados); 'og' = os do jogo original (`public/sounds/og/`). */
 export type SoundPack = 'default' | 'og';
+/** Pacote de ícones dos poderes: 'default' = seus arquivos em `src/assets/art/powers/` (ou emoji); 'og' = a folha recortada do jogo original (`src/assets/art/og/powers/`). */
+export type IconPack = 'default' | 'og';
 
 export interface Settings {
   sound: boolean;
@@ -24,6 +26,12 @@ export interface Settings {
    * padrão (sample próprio → sintetizado).
    */
   soundPack: SoundPack;
+  /**
+   * Pacote de ícones dos poderes — independente do tema (igual ao de sons). Com
+   * 'og', cada ícone que existir em `src/assets/art/og/powers/` substitui o
+   * emoji na casa de poder e nas listas; o que faltar cai no padrão.
+   */
+  iconPack: IconPack;
 }
 
 const KEY = 'ludo.settings.v1';
@@ -35,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   diceMode: 'seeded',
   theme: 'cream',
   soundPack: 'default',
+  iconPack: 'default',
 };
 
 function sanitize(v: unknown): Partial<Settings> {
@@ -49,6 +58,7 @@ function sanitize(v: unknown): Partial<Settings> {
   if (o.diceMode === 'seeded' || o.diceMode === 'physics') out.diceMode = o.diceMode;
   if (o.theme === 'cream' || o.theme === 'aurora' || o.theme === 'og') out.theme = o.theme;
   if (o.soundPack === 'default' || o.soundPack === 'og') out.soundPack = o.soundPack;
+  if (o.iconPack === 'default' || o.iconPack === 'og') out.iconPack = o.iconPack;
   return out;
 }
 
@@ -81,6 +91,7 @@ export function applySettings(patch: Partial<Settings>, reset = false): void {
   settings.diceMode = next.diceMode;
   settings.theme = next.theme;
   settings.soundPack = next.soundPack;
+  settings.iconPack = next.iconPack;
   saveSettings();
 }
 
