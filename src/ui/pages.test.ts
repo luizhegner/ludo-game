@@ -6,6 +6,7 @@ import { match } from '../stores/match.svelte';
 import { players } from '../stores/players.svelte';
 import { history } from '../stores/history.svelte';
 import { nav } from '../stores/nav.svelte';
+import { settings } from '../stores/settings.svelte';
 import { createGame, DEFAULT_RULES, endGame, move, roll } from '../engine/game';
 import { FINISH, type Color, type GameState } from '../engine/types';
 
@@ -199,11 +200,25 @@ describe('páginas com dados', () => {
     const app = mount(App, { target: document.getElementById('app')! });
     flushSync();
     clickText('Ajustes', '.tab');
-    const sound = document.querySelector('.toggle input') as HTMLInputElement;
+    const toggles = [...document.querySelectorAll<HTMLInputElement>('.toggle input')];
+    const sound = toggles[0];
+    const ogSounds = toggles[1];
     expect(sound.checked).toBe(true);
+    // switch "Sons do jogo original": independente do tema, persiste como soundPack
+    expect(ogSounds.checked).toBe(false);
+    ogSounds.click();
+    flushSync();
+    expect(settings.soundPack).toBe('og');
+    expect(JSON.parse(localStorage.getItem('ludo.settings.v1')!).soundPack).toBe('og');
+    expect(settings.theme).toBe('cream');
+    ogSounds.click();
+    flushSync();
+    expect(settings.soundPack).toBe('default');
+
     sound.click();
     flushSync();
     expect(JSON.parse(localStorage.getItem('ludo.settings.v1')!).sound).toBe(false);
+    expect(ogSounds.disabled).toBe(true); // sem sons, o pacote não importa
 
     clickText('Física real', '.opt');
     expect(JSON.parse(localStorage.getItem('ludo.settings.v1')!).diceMode).toBe('physics');

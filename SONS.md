@@ -7,6 +7,28 @@ detecta sozinho e usa o sample no lugar do sintetizado. Não precisa mexer em c�
 
 (Ícones e efeitos animados: ver `ARTE.md`.)
 
+## Pacote "Sons do jogo original" (`public/sounds/og/`)
+
+Switch em **Ajustes → Jogo → Sons do jogo original** (independente do tema — o
+tema é só visual). Com o switch ligado, cada som que existir em
+`public/sounds/og/<arquivo>.mp3` é usado; o que faltar cai no pacote padrão
+(`public/sounds/<arquivo>` → sintetizado). Mesmos nomes da tabela abaixo.
+
+Gerar a partir de uma gravação de tela (áudio de mídia, sem microfone):
+
+```sh
+pip install imageio-ffmpeg            # ou tenha o ffmpeg no PATH
+python3 tools/og-sons.py detectar gravacao.mp4 > eventos.txt   # lista os trechos com som (início, fim, duração)
+# preencha a última coluna de eventos.txt com o nome do som (ou escreva um cortes.txt: "inicio fim nome")
+python3 tools/og-sons.py cortar gravacao.mp4 cortes.txt public/sounds/og
+```
+
+O corte tira o silêncio do começo, aplica **um ganho único** pra sessão inteira
+(pico mais alto → −1 dBFS, preservando o balanço original entre os sons: passo
+baixinho, captura alta) e exporta mp3 mono 44,1 kHz 96 kbps. Gravação limpa
+(volume de mídia no máximo, uma ação por vez, ~1 s de pausa entre elas) é o que
+dá certo — o script não separa sons sobrepostos.
+
 Regras práticas:
 
 - Formato: **mp3** (Chrome Android) ou **ogg**; se existirem os dois, o mp3 tem prioridade.

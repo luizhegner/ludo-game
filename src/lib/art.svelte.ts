@@ -12,8 +12,12 @@
  * - `fx/`     — sprite sheets animados (`fire.png`, `shield@16.webp`…):
  *               tira horizontal de quadros quadrados; nº de quadros é lido
  *               do tamanho da imagem (largura ÷ altura); `@N` no nome = fps.
+ * - `og/powers/`, `og/fx/` — o mesmo, mas só valem com o tema **OG** ligado
+ *               (recortes do jogo original). Com o tema OG, a ordem é
+ *               `og/` → pasta normal → padrão (emoji/desenho).
  */
 import type { Power } from '../engine/types';
+import { settings } from '../stores/settings.svelte';
 
 type Files = Record<string, string>;
 
@@ -28,6 +32,16 @@ const UI_FILES = import.meta.glob('../assets/art/ui/*.{svg,png,webp}', {
   import: 'default',
 }) as Files;
 const FX_FILES = import.meta.glob('../assets/art/fx/*.{png,webp}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Files;
+const OG_POWER_FILES = import.meta.glob('../assets/art/og/powers/*.{svg,png,webp}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Files;
+const OG_FX_FILES = import.meta.glob('../assets/art/og/fx/*.{png,webp}', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -57,10 +71,27 @@ function index(files: Files): Map<string, string> {
 
 const powerIcons = index(POWER_FILES);
 const uiIcons = index(UI_FILES);
+const ogPowerIcons = index(OG_POWER_FILES);
 
-/** URL do ícone do poder, ou null pra usar o emoji. */
+/** Ícones do tema OG existentes (diagnóstico/testes). */
+export const OG_POWER_KEYS: string[] = [...ogPowerIcons.keys()];
+
+/**
+ * URL do ícone do poder, ou null pra usar o emoji. No tema OG, prefere o
+ * recorte do jogo original (`og/powers/`), se existir. Reativo ao tema.
+ */
 export function powerIconUrl(p: Power): string | null {
-  return powerIcons.get(normalizeKey(p)) ?? null;
+  const key = normalizeKey(p);
+  if (settings.theme === 'og') {
+    const og = ogPowerIcons.get(key);
+    if (og) return og;
+  }
+  return powerIcons.get(key) ?? null;
+}
+
+/** true se o ícone atual do poder é o recorte OG (desenhado ocupando a casa inteira). */
+export function isOgPowerIcon(p: Power): boolean {
+  return settings.theme === 'og' && ogPowerIcons.has(normalizeKey(p));
 }
 
 /** URL de um ícone da interface (`tab-home`, `menu`…), ou null pra usar o emoji. */
@@ -84,36 +115,49 @@ export interface FxSprite {
 
 const DEFAULT_FPS = 12;
 
-/** Sprites encontrados na build (antes de medir). Exportado pra diagnóstico/testes. */
-export const FX_DECLARED: Record<string, { url: string; fps: number }> = {};
-for (const [path, url] of Object.entries(FX_FILES)) {
-  const file = path.split('/').pop() ?? '';
-  const m = /^(.+?)(?:@(\d+))?\.(png|webp)$/i.exec(file);
-  if (!m) continue;
-  const fps = m[2] ? Math.min(60, Math.max(1, Number(m[2]))) : DEFAULT_FPS;
-  FX_DECLARED[normalizeKey(m[1])] = { url, fps };
+function declare(files: Files): Record<string, { url: string; fps: number }> {
+  const out: Record<string, { url: string; fps: number }> = {};
+  for (const [path, url] of Object.entries(files)) {
+    const file = path.split('/').pop() ?? '';
+    const m = /^(.+?)(?:@(\d+))?\.(png|webp)$/i.exec(file);
+    if (!m) continue;
+    const fps = m[2] ? Math.min(60, Math.max(1, Number(m[2]))) : DEFAULT_FPS;
+    out[normalizeKey(m[1])] = { url, fps };
+  }
+  return out;
 }
+
+/** Sprites encontrados na build (antes de medir). Exportado pra diagnóstico/testes. */
+export const FX_DECLARED = declare(FX_FILES);
+/** Idem, pasta `og/fx/` (só com o tema OG). */
+export const OG_FX_DECLARED = declare(OG_FX_FILES);
 
 /** Medidos em tempo de execução (precisa carregar a imagem pra saber o nº de quadros). */
 const fxMeta: Record<string, FxSprite | null> = $state({});
+const ogFxMeta: Record<string, FxSprite | null> = $state({});
 
-/** Sprite pronto pra usar, ou null pra usar o desenho padrão. */
+/** Sprite pronto pra usar, ou null pra usar o desenho padrão. No tema OG, prefere `og/fx/`. */
 export function fxSprite(name: FxName): FxSprite | null {
+  if (settings.theme === 'og') {
+    const og = ogFxMeta[name];
+    if (og) return og;
+  }
   return fxMeta[name] ?? null;
 }
 
-function measure(): void {
+function measure(declared: Record<string, { url: string; fps: number }>, into: Record<string, FxSprite | null>): void {
   if (typeof Image === 'undefined') return;
-  for (const [key, { url, fps }] of Object.entries(FX_DECLARED)) {
+  for (const [key, { url, fps }] of Object.entries(declared)) {
     const img = new Image();
     img.onload = () => {
       const frames = Math.max(1, Math.round(img.naturalWidth / Math.max(1, img.naturalHeight)));
-      fxMeta[key] = { url, frames, fps };
+      into[key] = { url, frames, fps };
     };
     img.onerror = () => {
-      fxMeta[key] = null;
+      into[key] = null;
     };
     img.src = url;
   }
 }
-measure();
+measure(FX_DECLARED, fxMeta);
+measure(OG_FX_DECLARED, ogFxMeta);

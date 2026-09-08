@@ -7,6 +7,7 @@ import { loadSetup, saveSetup, clearSetup } from './setup.svelte';
 import { createGame, DEFAULT_RULES, endGame, move, roll } from '../engine/game';
 import { FINISH, type Color, type GameState } from '../engine/types';
 import { makeBackup, parseBackup } from '../lib/backup';
+import { packOrder } from '../lib/sound';
 import { idbGetAll, idbPutMany, idbReset } from '../lib/idb';
 import { standings, mostPlayedMode, modesPlayed, placeOf, winnerOf } from '../lib/stats';
 import { timelineOf } from '../lib/timeline';
@@ -241,13 +242,28 @@ describe('ajustes', () => {
     }
   });
 
-  it('tema: aceita creme/aurora e ignora valor desconhecido', () => {
+  it('tema: aceita creme/aurora/og e ignora valor desconhecido', () => {
     applySettings({ theme: 'aurora' });
     expect(settings.theme).toBe('aurora');
     applySettings({ theme: 'neon' as unknown as Settings['theme'] });
     expect(settings.theme).toBe('aurora');
+    applySettings({ theme: 'og' });
+    expect(settings.theme).toBe('og');
     applySettings({}, true);
     expect(settings.theme).toBe('cream');
+  });
+
+  it('pacote de sons: independente do tema, aceita default/og e ignora lixo', () => {
+    applySettings({ soundPack: 'og' });
+    expect(settings.soundPack).toBe('og');
+    expect(settings.theme).toBe('cream');
+    applySettings({ soundPack: 'mp3' as unknown as Settings['soundPack'] });
+    expect(settings.soundPack).toBe('og');
+    applySettings({}, true);
+    expect(settings.soundPack).toBe('default');
+    // ordem de busca dos samples
+    expect(packOrder('default')).toEqual(['default']);
+    expect(packOrder('og')).toEqual(['og', 'default']);
   });
 });
 

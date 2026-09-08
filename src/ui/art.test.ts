@@ -1,11 +1,18 @@
 import { it, expect } from 'vitest';
-import { powerIconUrl, uiIconUrl, FX_DECLARED, normalizeKey } from '../lib/art.svelte';
+import { powerIconUrl, uiIconUrl, isOgPowerIcon, FX_DECLARED, OG_FX_DECLARED, OG_POWER_KEYS, normalizeKey } from '../lib/art.svelte';
+import { settings } from '../stores/settings.svelte';
 
-it('sem arquivos de arte, tudo cai no padrão (emoji / desenho)', () => {
+it('sem arquivos de arte, tudo cai no padrão (emoji / desenho) — inclusive no tema OG', () => {
   expect(powerIconUrl('rocket')).toBeNull();
   expect(powerIconUrl('bomb')).toBeNull();
   expect(uiIconUrl('tab-home')).toBeNull();
   expect(Object.keys(FX_DECLARED)).toEqual([]);
+  expect(Object.keys(OG_FX_DECLARED)).toEqual([]);
+  expect(OG_POWER_KEYS).toEqual([]);
+  settings.theme = 'og';
+  expect(powerIconUrl('rocket')).toBeNull();
+  expect(isOgPowerIcon('rocket')).toBe(false);
+  settings.theme = 'cream';
   // nomes de arquivo tolerantes: mega-bomb, megaBomb, Mega_Bomb → a mesma chave
   expect(normalizeKey('mega-bomb')).toBe(normalizeKey('megaBomb'));
   expect(normalizeKey('Mega_Bomb')).toBe('megabomb');

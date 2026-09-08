@@ -28,8 +28,14 @@
     void settings.autoMove;
     void settings.diceMode;
     void settings.theme;
+    void settings.soundPack;
     saveSettings();
   });
+
+  function setOgSounds(on: boolean) {
+    settings.soundPack = on ? 'og' : 'default';
+    sound.preload(); // baixa os samples do pacote já, pra não sintetizar as primeiras vezes
+  }
 
   const HAPTICS: { id: HapticsLevel; name: string; hint: string }[] = [
     { id: 'off', name: 'Desligada', hint: 'Nenhuma vibração' },
@@ -107,6 +113,13 @@
     <h2>Jogo</h2>
     <div class="card group">
       <Toggle label="Sons" hint="Dado, peças, capturas, vitória" bind:checked={settings.sound} />
+      <Toggle
+        label="Sons do jogo original"
+        hint="Usa as gravações do jogo original em tudo que já foi capturado; o que faltar continua com o som padrão. Vale em qualquer tema."
+        checked={settings.soundPack === 'og'}
+        disabled={!settings.sound}
+        onchange={setOgSounds}
+      />
       <Toggle label="Mover sozinho" hint="Quando só existe uma jogada possível, a peça anda sem precisar tocar" bind:checked={settings.autoMove} />
     </div>
   </section>

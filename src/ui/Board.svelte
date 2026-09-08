@@ -17,7 +17,7 @@
   import { controllerOf, destination, piecesColorFor, playerOf, progress } from '../engine/game';
   import { peekEffects } from '../engine/powers';
   import { POWER_ICON, powerBg, powerBorder } from '../lib/powers';
-  import { powerIconUrl } from '../lib/art.svelte';
+  import { powerIconUrl, isOgPowerIcon } from '../lib/art.svelte';
   import { players as roster } from '../stores/players.svelte';
   import { settings } from '../stores/settings.svelte';
   import Pawn from './Pawn.svelte';
@@ -89,7 +89,7 @@
   const powerCells = $derived(
     (game.powers?.cells ?? [])
       .filter((c) => !c.hidden)
-      .map((c) => ({ ...c, cell: RING_CELLS[c.abs], art: powerIconUrl(c.power) })),
+      .map((c) => ({ ...c, cell: RING_CELLS[c.abs], art: powerIconUrl(c.power), full: isOgPowerIcon(c.power) })),
   );
 
   // segurar o dedo numa casa de poder → explicação na área de status
@@ -294,6 +294,10 @@
       <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
         <feDropShadow dx="0" dy="0.05" stdDeviation="0.05" flood-color="#000" flood-opacity="0.25" />
       </filter>
+      <!-- recorte arredondado pros ícones OG que ocupam a casa inteira -->
+      <clipPath id="pcell" clipPathUnits="objectBoundingBox">
+        <rect width="1" height="1" rx="0.2" ry="0.2" />
+      </clipPath>
       {#each COLORS as c}
         <radialGradient id="g-{c}" cx="35%" cy="30%" r="75%">
           <stop offset="0" stop-color="#fff" stop-opacity="0.85" />
@@ -359,7 +363,10 @@
           stroke={powerBorder(pc.power)}
           stroke-width="0.05"
         />
-        {#if pc.art}
+        {#if pc.art && pc.full}
+          <!-- recorte do jogo original: já vem com o fundo da casa, ocupa a casa inteira (cantos arredondados) -->
+          <image href={pc.art} x={pc.cell.col + 0.07} y={pc.cell.row + 0.07} width="0.86" height="0.86" preserveAspectRatio="xMidYMid slice" clip-path="url(#pcell)" pointer-events="none" />
+        {:else if pc.art}
           <!-- arte própria: quadrado de 0,7 célula, centrado, sem esticar -->
           <image href={pc.art} x={pc.cell.col + 0.15} y={pc.cell.row + 0.15} width="0.7" height="0.7" preserveAspectRatio="xMidYMid meet" pointer-events="none" />
         {:else}

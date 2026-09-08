@@ -2,6 +2,8 @@
 
 export type HapticsLevel = 'off' | 'soft' | 'normal';
 export type Theme = 'cream' | 'aurora' | 'og';
+/** Pacote de sons: 'default' = seus samples em `public/sounds/` (ou sintetizados); 'og' = os do jogo original (`public/sounds/og/`). */
+export type SoundPack = 'default' | 'og';
 
 export interface Settings {
   sound: boolean;
@@ -16,6 +18,12 @@ export interface Settings {
   diceMode: 'seeded' | 'physics';
   /** Fundo: creme liso, "aurora" (manchas de cor desfocadas em movimento) ou "og" (mesa escura do jogo original). */
   theme: Theme;
+  /**
+   * Pacote de sons — independente do tema (o tema é só visual). Com 'og', cada
+   * som que existir em `public/sounds/og/` é usado; o que faltar cai no pacote
+   * padrão (sample próprio → sintetizado).
+   */
+  soundPack: SoundPack;
 }
 
 const KEY = 'ludo.settings.v1';
@@ -26,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoMove: true,
   diceMode: 'seeded',
   theme: 'cream',
+  soundPack: 'default',
 };
 
 function sanitize(v: unknown): Partial<Settings> {
@@ -39,6 +48,7 @@ function sanitize(v: unknown): Partial<Settings> {
   if (typeof o.autoMove === 'boolean') out.autoMove = o.autoMove;
   if (o.diceMode === 'seeded' || o.diceMode === 'physics') out.diceMode = o.diceMode;
   if (o.theme === 'cream' || o.theme === 'aurora' || o.theme === 'og') out.theme = o.theme;
+  if (o.soundPack === 'default' || o.soundPack === 'og') out.soundPack = o.soundPack;
   return out;
 }
 
@@ -70,6 +80,7 @@ export function applySettings(patch: Partial<Settings>, reset = false): void {
   settings.autoMove = next.autoMove;
   settings.diceMode = next.diceMode;
   settings.theme = next.theme;
+  settings.soundPack = next.soundPack;
   saveSettings();
 }
 

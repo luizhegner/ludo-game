@@ -159,6 +159,12 @@ e % / ⚔☠ na borda interna do quadrante) e `src/ui/GameScreen.svelte`
 + ✕/☠ + 👉 quando é hora de rolar). A barra de abas escurece via
 `--tabbar-bg`.
 
+Ícones e sons originais: os prints (PNG nativo) viram `src/assets/art/og/powers/`
+via `tools/og-icones.py` e a gravação de tela vira `public/sounds/og/` via
+`tools/og-sons.py` (ver ARTE.md §2b e SONS.md). Os sons são um **switch**
+separado do tema (Ajustes → Sons do jogo original); os ícones OG só aparecem
+com o tema OG.
+
 Ainda por reproduzir (pequeno, pode entrar com a arte da fase 8): anel de
 seleção **tracejado** girando na peça movível (hoje usamos o alvo pulsante) e
 o ícone do poder aparecendo no tile do avatar quando a peça pega um poder.

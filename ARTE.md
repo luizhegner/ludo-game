@@ -81,6 +81,39 @@ Notas:
   pega todo mundo em volta).
 - A mina precisa parecer **azar**, não poder bom.
 
+## 2b. Pacote OG — recortes do jogo original (`src/assets/art/og/`)
+
+Só valem com o tema **OG** ligado (Ajustes → Aparência). Com o tema OG a ordem
+é `og/powers/` → `powers/` → emoji; nos outros temas a pasta `og/` é ignorada.
+Uso pessoal, entre amigos — não é arte pra distribuir.
+
+| Pasta | O quê | Formato |
+|---|---|---|
+| `og/powers/<poder>.png` | casa de poder inteira, recortada do print (já com o fundo da casa) | PNG 128×128, cantos arredondados transparentes |
+| `og/fx/<efeito>@N.png` | sprite sheets (mesma spec da seção 4) | PNG/WebP |
+
+Diferença pro ícone "próprio": o recorte OG é desenhado **ocupando a casa
+toda** (`preserveAspectRatio: slice` + recorte arredondado), porque ele já traz
+o fundo colorido da casa original. Nomes: os mesmos da tabela da seção 2
+(`shield`, `freeze`, `spring`, `rocket`, `magic-dice`, `x2`, `x3`, `bomb`,
+`mega-bomb`, `mine`, `fire`).
+
+### Como gerar a partir dos prints (automático)
+
+```sh
+pip install pillow
+python3 tools/og-icones.py listar  print.png          # acha o tabuleiro e gera print.contato.png com as 52 casas numeradas
+python3 tools/og-icones.py recortar print.png 2=x2 14=freeze 22=spring   # índice da casa = nome do poder
+python3 tools/og-icones.py recortar print.png --caixa 340,95,80,80=dado-6  # qualquer região (x,y,largura,altura)
+```
+
+O script acha o tabuleiro pela cor dos 4 quadrantes (funciona com qualquer
+resolução; em vídeo reescalado sem proporção usa escalas separadas). Prints em
+**PNG** e na resolução nativa dão recortes nítidos (~70 px por casa no S21 →
+128 px final sem borrar).
+
+---
+
 ## 3. Ícones da interface — `src/assets/art/ui/`
 
 | Arquivo | Onde | Padrão atual |

@@ -5,9 +5,12 @@
  * - Cada som tem uma versão sintetizada via WebAudio (funciona offline, sem arquivos).
  * - Se existir `public/sounds/<arquivo>.mp3` ou `.ogg`, o sample substitui o sintetizado
  *   (ver SONS.md pra lista e descrição de cada um).
+ * - Pacotes: com `settings.soundPack === 'og'` procura primeiro em
+ *   `public/sounds/og/<arquivo>`; o que não existir lá cai no pacote padrão
+ *   (`public/sounds/<arquivo>` → sintetizado). Trocar o pacote não exige recarregar.
  * - O AudioContext é criado/desbloqueado no primeiro toque do usuário (regra dos navegadores).
  */
-import { settings } from '../stores/settings.svelte';
+import { settings, type SoundPack } from '../stores/settings.svelte';
 
 export type SoundName =
   | 'dice'
@@ -295,9 +298,9 @@ const SYNTH: Record<SoundName, Synth> = {
 class SoundPlayer {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  /** Sample decodificado por som; `null` = não existe arquivo, usa sintetizado. */
-  private samples = new Map<SoundName, AudioBuffer | null>();
-  private loading = new Map<SoundName, Promise<AudioBuffer | null>>();
+  /** Sample decodificado por `pacote/som`; `null` = não existe arquivo nesse pacote. */
+  private samples = new Map<string, AudioBuffer | null>();
+  private loading = new Map<string, Promise<AudioBuffer | null>>();
   private unlocked = false;
   private listenersInstalled = false;
 
@@ -313,14 +316,18 @@ class SoundPlayer {
       if (!ctx || !this.master) return;
       if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
 
-      const cached = this.samples.get(name);
-      if (cached) {
-        this.playBuffer(ctx, cached);
-        return;
-      }
-      if (cached === undefined) {
-        // primeira vez: tenta carregar o sample em paralelo; enquanto isso, sintetiza
-        void this.loadSample(name);
+      // ordem de preferência: pacote escolhido → pacote padrão → sintetizado
+      for (const pack of packOrder(settings.soundPack)) {
+        const key = `${pack}/${name}`;
+        const cached = this.samples.get(key);
+        if (cached) {
+          this.playBuffer(ctx, cached);
+          return;
+        }
+        if (cached === undefined) {
+          // primeira vez: tenta carregar o sample em paralelo; enquanto isso, sintetiza
+          void this.loadSample(pack, name);
+        }
       }
       SYNTH[name](ctx, this.master, ctx.currentTime);
     } catch {
@@ -372,16 +379,18 @@ class SoundPlayer {
     src.start();
   }
 
-  private loadSample(name: SoundName): Promise<AudioBuffer | null> {
-    const pending = this.loading.get(name);
+  private loadSample(pack: SoundPack, name: SoundName): Promise<AudioBuffer | null> {
+    const key = `${pack}/${name}`;
+    const pending = this.loading.get(key);
     if (pending) return pending;
     const p = (async (): Promise<AudioBuffer | null> => {
       const ctx = this.ctx;
       if (!ctx || typeof fetch !== 'function') return null;
       const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+      const dir = pack === 'default' ? 'sounds/' : `sounds/${pack}/`;
       for (const ext of EXTENSIONS) {
         try {
-          const res = await fetch(`${base}sounds/${SOUND_FILES[name]}.${ext}`);
+          const res = await fetch(`${base}${dir}${SOUND_FILES[name]}.${ext}`);
           if (!res.ok) continue;
           const type = res.headers.get('content-type') ?? '';
           if (type.includes('text/html')) continue; // SPA fallback devolveu o index.html
@@ -394,12 +403,25 @@ class SoundPlayer {
       }
       return null;
     })();
-    this.loading.set(name, p);
+    this.loading.set(key, p);
     void p.then(
-      (buf) => this.samples.set(name, buf),
-      () => this.samples.set(name, null),
+      (buf) => this.samples.set(key, buf),
+      () => this.samples.set(key, null),
     );
     return p;
+  }
+
+  /**
+   * Pré-carrega os samples de um pacote (chamado ao ligar o switch nos Ajustes,
+   * pra não sintetizar as primeiras vezes). Nunca lança.
+   */
+  preload(pack: SoundPack = settings.soundPack): void {
+    try {
+      if (!this.context()) return;
+      for (const p of packOrder(pack)) for (const name of Object.keys(SOUND_FILES) as SoundName[]) void this.loadSample(p, name);
+    } catch {
+      /* ignora */
+    }
   }
 
   private installUnlock(): void {
@@ -414,5 +436,10 @@ class SoundPlayer {
 }
 
 const EVENTS = ['pointerdown', 'touchstart', 'mousedown', 'keydown'] as const;
+
+/** Pacotes a tentar, do preferido pro padrão. */
+export function packOrder(pack: SoundPack): SoundPack[] {
+  return pack === 'default' ? ['default'] : [pack, 'default'];
+}
 
 export const sound = new SoundPlayer();
