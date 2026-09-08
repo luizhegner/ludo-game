@@ -18,52 +18,70 @@ import {
 } from 'three';
 import type { Color } from '../../engine/types';
 import { COLOR_HEX } from '../colors';
-import { topFace, validFace } from './face';
-import type { DieRoll, DieScene, DieSceneOptions } from './types';
+import { topFace, topFaceConfidence, validFace } from './face';
+import type { DiePose, DieRoll, DieScene, DieSceneOptions } from './types';
 
-const WORLD_SIZE = 2.35;
-const DIE_SIZE = 0.92;
-const MAX_DRAG = 180;
+const BOARD = 15;
+const DIE_SIZE = 1.55;
+const WALL_T = 0.35;
+const WALL_H = 4;
+const MAX_DRAG = 260;
+const HOME_WAIT = 900;
+const HOME_MS = 480;
+
+type Phase = 'idle' | 'rolling' | 'hold' | 'homing';
+
+interface Actor {
+  id: string;
+  color: Color;
+  mesh: Mesh;
+  edge: LineSegments;
+  body: CANNON.Body;
+  homeX: number;
+  homeZ: number;
+  phase: Phase;
+  settleFor: number;
+  rollStarted: number;
+  holdUntil: number;
+  homeFrom: { x: number; y: number; z: number };
+  homeT: number;
+  dragX: number;
+  dragY: number;
+  promise: Promise<DieRoll> | null;
+  resolve: ((roll: DieRoll) => void) | null;
+}
 
 /**
- * Pequena cena Three.js + cannon-es para um único dado.
- *
- * A classe não sabe nada sobre o jogo: ela apenas devolve a face que ficou
- * para cima. Sorteio, turnos e persistência continuam no motor/store.
+ * Mesa 15×15 alinhada ao tabuleiro: o canvas cobre o board inteiro, o dado
+ * descansa na base e rola até as bordas (e tromba nos outros, no Deathmatch).
  */
-export class PhysicsDie implements DieScene {
+export class PhysicsTable {
   readonly canvas: HTMLCanvasElement;
-  readonly color: Color;
   readonly scene: Scene;
   readonly camera: OrthographicCamera;
   readonly renderer: WebGLRenderer;
   readonly world: CANNON.World;
-  readonly body: CANNON.Body;
-  readonly mesh: Mesh;
 
-  private readonly edge: LineSegments;
-  private readonly ground: Mesh;
-  private readonly onResult?: (roll: DieRoll) => void;
+  private readonly actors = new Map<string, Actor>();
+  private readonly dieMat: CANNON.Material;
+  private readonly surface: CANNON.Material;
+  private readonly onPose?: (poses: DiePose[]) => void;
   private frame: number | null = null;
   private lastFrame = 0;
-  private settleFor = 0;
-  private rollStarted = 0;
-  private current: Promise<DieRoll> | null = null;
-  private resolveCurrent: ((roll: DieRoll) => void) | null = null;
-  private dragX = 0;
-  private dragY = 0;
   private disposed = false;
+  private px = 360;
+  private idleUntil = 0;
 
-  constructor(canvas: HTMLCanvasElement, options: DieSceneOptions) {
+  constructor(canvas: HTMLCanvasElement, options: { size: number; onPose?: (poses: DiePose[]) => void }) {
     this.canvas = canvas;
-    this.color = options.color;
-    this.onResult = options.onResult;
+    this.onPose = options.onPose;
 
     this.scene = new Scene();
     this.scene.background = null;
-    this.camera = new OrthographicCamera(-3.2, 3.2, 3.2, -3.2, 0.1, 30);
-    this.camera.position.set(4.4, 5.1, 6.2);
-    this.camera.lookAt(0, 0.35, 0);
+    this.camera = new OrthographicCamera(-BOARD / 2, BOARD / 2, BOARD / 2, -BOARD / 2, 0.1, 80);
+    this.camera.up.set(0, 0, -1);
+    this.camera.position.set(BOARD / 2, 48, BOARD / 2);
+    this.camera.lookAt(BOARD / 2, 0, BOARD / 2);
 
     this.renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -71,112 +89,215 @@ export class PhysicsDie implements DieScene {
     this.renderer.shadowMap.type = 2;
     this.renderer.outputColorSpace = 'srgb';
 
-    this.scene.add(new AmbientLight('#ffffff', 1.8));
-    const key = new DirectionalLight('#ffffff', 3.2);
-    key.position.set(-3, 6, 4);
+    this.scene.add(new AmbientLight('#ffffff', 1.55));
+    const key = new DirectionalLight('#ffffff', 2.6);
+    key.position.set(4, 22, 2);
     key.castShadow = true;
-    key.shadow.mapSize.set(512, 512);
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.left = -10;
+    key.shadow.camera.right = 10;
+    key.shadow.camera.top = 10;
+    key.shadow.camera.bottom = -10;
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far = 50;
     this.scene.add(key);
 
-    this.ground = new Mesh(new PlaneGeometry(5.8, 5.8), new ShadowMaterial({ color: '#000000', opacity: 0.18 }));
-    this.ground.rotation.x = -Math.PI / 2;
-    this.ground.receiveShadow = true;
-    this.scene.add(this.ground);
+    const ground = new Mesh(new PlaneGeometry(BOARD, BOARD), new ShadowMaterial({ color: '#000000', opacity: 0.22 }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(BOARD / 2, 0.02, BOARD / 2);
+    ground.receiveShadow = true;
+    this.scene.add(ground);
 
-    const materials = [2, 5, 1, 6, 3, 4].map((face) => pipMaterial(face));
-    this.mesh = new Mesh(new BoxGeometry(DIE_SIZE, DIE_SIZE, DIE_SIZE), materials);
-    this.mesh.castShadow = true;
-    this.mesh.position.y = DIE_SIZE / 2 + 0.08;
-    this.scene.add(this.mesh);
-    this.edge = new LineSegments(new EdgesGeometry(this.mesh.geometry), new LineBasicMaterial({ color: COLOR_HEX[options.color], linewidth: 2 }));
-    this.mesh.add(this.edge);
-
-    this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+    this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, -22, 0) });
     this.world.allowSleep = true;
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
-    const surface = new CANNON.Material('table');
-    const dieSurface = new CANNON.Material('die');
-    this.world.addContactMaterial(
-      new CANNON.ContactMaterial(surface, dieSurface, { friction: 0.42, restitution: 0.34 }),
-    );
-    this.world.addContactMaterial(new CANNON.ContactMaterial(surface, surface, { friction: 0.5, restitution: 0.2 }));
-    this.body = new CANNON.Body({
-      mass: 1,
-      material: dieSurface,
-      shape: new CANNON.Box(new CANNON.Vec3(DIE_SIZE / 2, DIE_SIZE / 2, DIE_SIZE / 2)),
-      position: new CANNON.Vec3(0, DIE_SIZE / 2 + 0.08, 0),
-      allowSleep: true,
-      sleepSpeedLimit: 0.08,
-      sleepTimeLimit: 0.16,
-      linearDamping: 0.18,
-      angularDamping: 0.18,
-    });
-    this.world.addBody(this.body);
+    this.surface = new CANNON.Material('table');
+    this.dieMat = new CANNON.Material('die');
+    this.world.addContactMaterial(new CANNON.ContactMaterial(this.surface, this.dieMat, { friction: 0.38, restitution: 0.42 }));
+    this.world.addContactMaterial(new CANNON.ContactMaterial(this.dieMat, this.dieMat, { friction: 0.2, restitution: 0.35 }));
 
-    // Caixa invisível em volta do tabuleiro. Caixas simples são mais estáveis
-    // que planos finos quando o dado bate de quina.
-    this.addWall(new CANNON.Vec3(WORLD_SIZE, 0.5, 0), new CANNON.Vec3(0.08, 0.55, WORLD_SIZE + 0.25), surface);
-    this.addWall(new CANNON.Vec3(-WORLD_SIZE, 0.5, 0), new CANNON.Vec3(0.08, 0.55, WORLD_SIZE + 0.25), surface);
-    this.addWall(new CANNON.Vec3(0, 0.5, WORLD_SIZE), new CANNON.Vec3(WORLD_SIZE + 0.25, 0.55, 0.08), surface);
-    this.addWall(new CANNON.Vec3(0, 0.5, -WORLD_SIZE), new CANNON.Vec3(WORLD_SIZE + 0.25, 0.55, 0.08), surface);
-    const floor = new CANNON.Body({ mass: 0, material: surface, shape: new CANNON.Plane(), position: new CANNON.Vec3(0, 0, 0) });
+    const floor = new CANNON.Body({ mass: 0, material: this.surface, shape: new CANNON.Plane() });
     floor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
     this.world.addBody(floor);
+    // Bordas do tabuleiro (caixas altas: o dado bate e volta).
+    this.addWall(BOARD / 2, -WALL_T / 2, BOARD / 2 + WALL_T, WALL_H / 2, WALL_T / 2);
+    this.addWall(BOARD / 2, BOARD + WALL_T / 2, BOARD / 2 + WALL_T, WALL_H / 2, WALL_T / 2);
+    this.addWall(-WALL_T / 2, BOARD / 2, WALL_T / 2, WALL_H / 2, BOARD / 2 + WALL_T);
+    this.addWall(BOARD + WALL_T / 2, BOARD / 2, WALL_T / 2, WALL_H / 2, BOARD / 2 + WALL_T);
 
     this.resize(options.size);
     this.render(0);
   }
 
   get running(): boolean {
-    return this.current !== null;
+    for (const a of this.actors.values()) if (a.phase === 'rolling') return true;
+    return false;
   }
 
-  roll(dragX = 0, dragY = 0): Promise<DieRoll> {
-    if (this.disposed) return Promise.resolve({ value: 1, dragX, dragY });
-    if (this.current) return this.current;
-    this.dragX = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, dragX));
-    this.dragY = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, dragY));
-    this.current = new Promise<DieRoll>((resolve) => (this.resolveCurrent = resolve));
-    this.rollStarted = performance.now();
-    this.settleFor = 0;
-    this.body.wakeUp();
-    this.body.position.set(0, 1.15, 0);
-    this.body.velocity.set(0, 0, 0);
-    this.body.angularVelocity.set(0, 0, 0);
-    this.body.quaternion.setFromEuler(Math.random() * 2, Math.random() * 2, Math.random() * 2);
-    const impulse = new CANNON.Vec3(this.dragX / MAX_DRAG * 2.1, 2.4, -this.dragY / MAX_DRAG * 2.1);
-    this.body.applyImpulse(impulse, this.body.position);
-    this.body.angularVelocity.set((Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15);
-    this.startFrame();
-    return this.current;
+  sync(ids: string[]): void {
+    for (const id of [...this.actors.keys()]) {
+      if (!ids.includes(id)) this.removeDie(id);
+    }
+  }
+
+  ensureDie(id: string, color: Color, homeX: number, homeZ: number): void {
+    const existing = this.actors.get(id);
+    if (existing) {
+      existing.homeX = homeX;
+      existing.homeZ = homeZ;
+      if (existing.color !== color) this.setColor(id, color);
+      if (existing.phase !== 'rolling') {
+        const dx = existing.body.position.x - homeX;
+        const dz = existing.body.position.z - homeZ;
+        if (dx * dx + dz * dz > 0.08) this.startHome(existing);
+      }
+      return;
+    }
+    const materials = [2, 5, 1, 6, 3, 4].map((face) => pipMaterial(face));
+    const mesh = new Mesh(new BoxGeometry(DIE_SIZE, DIE_SIZE, DIE_SIZE), materials);
+    mesh.castShadow = true;
+    mesh.position.set(homeX, DIE_SIZE / 2, homeZ);
+    this.scene.add(mesh);
+    const edge = new LineSegments(
+      new EdgesGeometry(mesh.geometry),
+      new LineBasicMaterial({ color: COLOR_HEX[color], linewidth: 2 }),
+    );
+    mesh.add(edge);
+
+    const body = new CANNON.Body({
+      mass: 1.4,
+      material: this.dieMat,
+      shape: new CANNON.Box(new CANNON.Vec3(DIE_SIZE / 2, DIE_SIZE / 2, DIE_SIZE / 2)),
+      position: new CANNON.Vec3(homeX, DIE_SIZE / 2, homeZ),
+      allowSleep: true,
+      sleepSpeedLimit: 0.12,
+      sleepTimeLimit: 0.18,
+      linearDamping: 0.22,
+      angularDamping: 0.22,
+    });
+    this.world.addBody(body);
+
+    this.actors.set(id, {
+      id,
+      color,
+      mesh,
+      edge,
+      body,
+      homeX,
+      homeZ,
+      phase: 'idle',
+      settleFor: 0,
+      rollStarted: 0,
+      holdUntil: 0,
+      homeFrom: { x: homeX, y: DIE_SIZE / 2, z: homeZ },
+      homeT: 1,
+      dragX: 0,
+      dragY: 0,
+      promise: null,
+      resolve: null,
+    });
+    this.kick();
+  }
+
+  setColor(id: string, color: Color): void {
+    const a = this.actors.get(id);
+    if (!a) return;
+    a.color = color;
+    (a.edge.material as LineBasicMaterial).color.set(COLOR_HEX[color]);
+    this.kick();
+  }
+
+  poseOf(id: string): DiePose | null {
+    const a = this.actors.get(id);
+    if (!a) return null;
+    return { id, x: a.mesh.position.x, y: a.mesh.position.z, rolling: a.phase === 'rolling' };
+  }
+
+  roll(id: string, dragX = 0, dragY = 0): Promise<DieRoll> {
+    const a = this.actors.get(id);
+    if (!a || this.disposed) return Promise.resolve({ value: 1, dragX, dragY });
+    if (a.promise) return a.promise;
+    a.dragX = clamp(dragX, -MAX_DRAG, MAX_DRAG);
+    a.dragY = clamp(dragY, -MAX_DRAG, MAX_DRAG);
+    a.promise = new Promise<DieRoll>((resolve) => (a.resolve = resolve));
+    a.phase = 'rolling';
+    a.rollStarted = performance.now();
+    a.settleFor = 0;
+    a.body.wakeUp();
+    const x = clamp(a.body.position.x, DIE_SIZE, BOARD - DIE_SIZE);
+    const z = clamp(a.body.position.z, DIE_SIZE, BOARD - DIE_SIZE);
+    a.body.position.set(x, DIE_SIZE / 2 + 0.55, z);
+    a.body.velocity.set(0, 0, 0);
+    a.body.angularVelocity.set(0, 0, 0);
+    const tap = Math.hypot(a.dragX, a.dragY) < 12;
+    const pxToWorld = BOARD / Math.max(1, this.px);
+    const ix = tap ? (Math.random() - 0.5) * 4 : a.dragX * pxToWorld * 3.4;
+    const iz = tap ? (Math.random() - 0.5) * 4 : a.dragY * pxToWorld * 3.4;
+    const iy = tap ? 6.5 : 4.2 + Math.min(5, Math.hypot(ix, iz) * 0.35);
+    a.body.applyImpulse(new CANNON.Vec3(ix, iy, iz), a.body.position);
+    a.body.angularVelocity.set(
+      (Math.random() - 0.5) * 18 + iz * 0.8,
+      (Math.random() - 0.5) * 14,
+      (Math.random() - 0.5) * 18 - ix * 0.8,
+    );
+    this.kick();
+    return a.promise;
   }
 
   resize(size: number): void {
-    const px = Math.max(32, size);
-    this.renderer.setSize(px, px, false);
+    this.px = Math.max(64, size);
+    this.renderer.setSize(this.px, this.px, false);
+    this.kick();
   }
 
   dispose(): void {
     this.disposed = true;
     if (this.frame !== null) cancelAnimationFrame(this.frame);
     this.frame = null;
-    for (const child of [...this.mesh.children]) child.removeFromParent();
-    this.mesh.geometry.dispose();
-    for (const material of Array.isArray(this.mesh.material) ? this.mesh.material : [this.mesh.material]) {
-      const m = material as MeshStandardMaterial;
-      const map = m.map;
-      m.dispose();
-      map?.dispose();
-    }
-    (this.edge.material as LineBasicMaterial).dispose();
-    this.edge.geometry.dispose();
+    for (const id of [...this.actors.keys()]) this.removeDie(id);
     this.renderer.dispose();
-    if (this.current) this.finish(1);
   }
 
-  private addWall(position: CANNON.Vec3, half: CANNON.Vec3, material: CANNON.Material): void {
-    const wall = new CANNON.Body({ mass: 0, material, shape: new CANNON.Box(half), position });
+  private removeDie(id: string): void {
+    const a = this.actors.get(id);
+    if (!a) return;
+    if (a.promise) this.finish(a, 1);
+    this.world.removeBody(a.body);
+    for (const child of [...a.mesh.children]) child.removeFromParent();
+    a.mesh.geometry.dispose();
+    for (const material of Array.isArray(a.mesh.material) ? a.mesh.material : [a.mesh.material]) {
+      const m = material as MeshStandardMaterial;
+      m.map?.dispose();
+      m.dispose();
+    }
+    (a.edge.material as LineBasicMaterial).dispose();
+    a.edge.geometry.dispose();
+    a.mesh.removeFromParent();
+    this.actors.delete(id);
+  }
+
+  private addWall(x: number, z: number, hx: number, hy: number, hz: number): void {
+    const wall = new CANNON.Body({
+      mass: 0,
+      material: this.surface,
+      shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)),
+      position: new CANNON.Vec3(x, hy, z),
+    });
     this.world.addBody(wall);
+  }
+
+  private startHome(a: Actor): void {
+    if (a.phase === 'rolling') return;
+    a.phase = 'homing';
+    a.homeFrom = { x: a.mesh.position.x, y: a.mesh.position.y, z: a.mesh.position.z };
+    a.homeT = 0;
+    a.body.sleep();
+    this.kick();
+  }
+
+  private kick(): void {
+    this.idleUntil = performance.now() + 80;
+    this.startFrame();
   }
 
   private startFrame(): void {
@@ -191,65 +312,141 @@ export class PhysicsDie implements DieScene {
     if (this.disposed) return;
     const dt = Math.min(0.05, Math.max(0.001, (time - this.lastFrame) / 1000 || 1 / 60));
     this.lastFrame = time;
-    if (this.current) {
-      this.world.step(1 / 60, dt, 3);
-      this.mesh.position.set(this.body.position.x, this.body.position.y, this.body.position.z);
-      this.mesh.quaternion.set(this.body.quaternion.x, this.body.quaternion.y, this.body.quaternion.z, this.body.quaternion.w);
-      const speed = this.body.velocity.length() + this.body.angularVelocity.length() * 0.18;
-      if (speed < 0.2) this.settleFor += dt;
-      else this.settleFor = 0;
-      if (this.settleFor > 0.18 || time - this.rollStarted > 2600) this.finish(topFace(this.mesh.quaternion));
+    let busy = false;
+
+    const needStep = [...this.actors.values()].some((a) => a.phase === 'rolling');
+    if (needStep) this.world.step(1 / 60, dt, 4);
+
+    for (const a of this.actors.values()) {
+      if (a.phase === 'rolling') {
+        busy = true;
+        a.mesh.position.set(a.body.position.x, a.body.position.y, a.body.position.z);
+        a.mesh.quaternion.set(a.body.quaternion.x, a.body.quaternion.y, a.body.quaternion.z, a.body.quaternion.w);
+        const q = a.mesh.quaternion;
+        if (topFaceConfidence(q) < 0.82 && a.body.velocity.length() < 0.6) {
+          a.body.wakeUp();
+          a.body.angularVelocity.x += (Math.random() - 0.5) * 3;
+          a.body.angularVelocity.z += (Math.random() - 0.5) * 3;
+        }
+        const speed = a.body.velocity.length() + a.body.angularVelocity.length() * 0.2;
+        if (speed < 0.28) a.settleFor += dt;
+        else a.settleFor = 0;
+        if (a.settleFor > 0.22 || time - a.rollStarted > 3200) this.finish(a, topFace(a.mesh.quaternion));
+      } else if (a.phase === 'hold') {
+        busy = true;
+        if (time >= a.holdUntil) this.startHome(a);
+      } else if (a.phase === 'homing') {
+        busy = true;
+        a.homeT = Math.min(1, a.homeT + dt * (1000 / HOME_MS));
+        const t = easeOut(a.homeT);
+        a.mesh.position.set(
+          a.homeFrom.x + (a.homeX - a.homeFrom.x) * t,
+          a.homeFrom.y + (DIE_SIZE / 2 - a.homeFrom.y) * t,
+          a.homeFrom.z + (a.homeZ - a.homeFrom.z) * t,
+        );
+        if (a.homeT >= 1) {
+          a.phase = 'idle';
+          a.body.position.set(a.homeX, DIE_SIZE / 2, a.homeZ);
+          a.body.velocity.set(0, 0, 0);
+          a.body.angularVelocity.set(0, 0, 0);
+          a.body.quaternion.set(a.mesh.quaternion.x, a.mesh.quaternion.y, a.mesh.quaternion.z, a.mesh.quaternion.w);
+          a.body.sleep();
+        }
+      }
     }
+
     this.renderer.render(this.scene, this.camera);
-    if (this.current) this.frame = requestAnimationFrame((next) => this.render(next));
+    this.onPose?.([...this.actors.values()].map((a) => ({ id: a.id, x: a.mesh.position.x, y: a.mesh.position.z, rolling: a.phase === 'rolling' })));
+
+    if (busy || time < this.idleUntil) this.frame = requestAnimationFrame((next) => this.render(next));
   }
 
-  private finish(raw: number): void {
-    if (!this.current) return;
+  private finish(a: Actor, raw: number): void {
+    if (!a.promise) return;
     const value = validFace(raw) ? raw : 1;
-    const result: DieRoll = { value, dragX: this.dragX, dragY: this.dragY };
-    const resolve = this.resolveCurrent;
-    this.current = null;
-    this.resolveCurrent = null;
-    this.body.sleep();
+    const result: DieRoll = { value, dragX: a.dragX, dragY: a.dragY };
+    const resolve = a.resolve;
+    a.promise = null;
+    a.resolve = null;
+    a.body.velocity.set(0, 0, 0);
+    a.body.sleep();
+    a.phase = 'hold';
+    a.holdUntil = performance.now() + HOME_WAIT;
     resolve?.(result);
-    this.onResult?.(result);
   }
 }
 
-/** Cria uma textura pequena com os pontos pretos do valor da face. */
+/** Um dado só — API antiga, usada se alguém ainda instancia PhysicsDie. */
+export class PhysicsDie implements DieScene {
+  readonly canvas: HTMLCanvasElement;
+  color: Color;
+  private readonly table: PhysicsTable;
+  private readonly onResult?: (roll: DieRoll) => void;
+
+  constructor(canvas: HTMLCanvasElement, options: DieSceneOptions) {
+    this.canvas = canvas;
+    this.color = options.color;
+    this.onResult = options.onResult;
+    this.table = new PhysicsTable(canvas, { size: options.size });
+    this.table.ensureDie('main', options.color, BOARD / 2, BOARD / 2);
+  }
+
+  get running(): boolean {
+    return this.table.running;
+  }
+
+  roll(dragX = 0, dragY = 0): Promise<DieRoll> {
+    return this.table.roll('main', dragX, dragY).then((r) => {
+      this.onResult?.(r);
+      return r;
+    });
+  }
+
+  resize(size: number): void {
+    this.table.resize(size);
+  }
+
+  setColor(color: Color): void {
+    this.color = color;
+    this.table.setColor('main', color);
+  }
+
+  dispose(): void {
+    this.table.dispose();
+  }
+}
+
 function pipMaterial(value: number): MeshStandardMaterial {
   const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
   if (!canvas) return new MeshStandardMaterial({ color: '#ffffff', roughness: 0.52, metalness: 0.02 });
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = 256;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (!ctx) return new MeshStandardMaterial({ color: '#ffffff', roughness: 0.52, metalness: 0.02 });
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, 128, 128);
-  ctx.strokeStyle = '#eef0f4';
-  ctx.lineWidth = 7;
-  ctx.strokeRect(4, 4, 120, 120);
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.strokeStyle = '#e8eaef';
+  ctx.lineWidth = 14;
+  ctx.strokeRect(8, 8, 240, 240);
   const pips: Record<number, [number, number][]> = {
-    1: [[64, 64]],
-    2: [[34, 34], [94, 94]],
-    3: [[34, 34], [64, 64], [94, 94]],
-    4: [[34, 34], [94, 34], [34, 94], [94, 94]],
-    5: [[34, 34], [94, 34], [64, 64], [34, 94], [94, 94]],
-    6: [[34, 28], [94, 28], [34, 64], [94, 64], [34, 100], [94, 100]],
+    1: [[128, 128]],
+    2: [[68, 68], [188, 188]],
+    3: [[68, 68], [128, 128], [188, 188]],
+    4: [[68, 68], [188, 68], [68, 188], [188, 188]],
+    5: [[68, 68], [188, 68], [128, 128], [68, 188], [188, 188]],
+    6: [[68, 56], [188, 56], [68, 128], [188, 128], [68, 200], [188, 200]],
   };
   ctx.fillStyle = '#1f2430';
   for (const [x, y] of pips[value] ?? pips[1]) {
     ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.arc(x, y, 24, 0, Math.PI * 2);
     ctx.fill();
   }
   const texture: Texture = new CanvasTexture(canvas);
   texture.needsUpdate = true;
-  return new MeshStandardMaterial({ map: texture, roughness: 0.52, metalness: 0.02 });
+  return new MeshStandardMaterial({ map: texture, roughness: 0.5, metalness: 0.02 });
 }
 
-/** Testa o suporte básico a WebGL sem criar uma cena persistente. */
 export function canUseWebGL(): boolean {
   if (typeof document === 'undefined') return false;
   try {
@@ -258,4 +455,12 @@ export function canUseWebGL(): boolean {
   } catch {
     return false;
   }
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function easeOut(t: number): number {
+  return 1 - (1 - t) * (1 - t);
 }

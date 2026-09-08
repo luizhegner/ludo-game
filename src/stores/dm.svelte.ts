@@ -76,7 +76,7 @@ class DeathmatchStore {
     return p?.phase === 'move' ? p.legal : [];
   }
 
-  roll(color: Color, forced?: number): void {
+  roll(color: Color, forced?: number, opts?: { visualDone?: boolean }): void {
     const s = match.state;
     if (!s || !this.canRoll(color, s)) return;
     if (match.timeIsUp()) return;
@@ -93,8 +93,10 @@ class DeathmatchStore {
     const a = this.anim[color];
     a.rolling = true;
     a.rollingValue = value;
-    sound.play('dice');
-    haptic('diceStart');
+    if (!opts?.visualDone) {
+      sound.play('dice');
+      haptic('diceStart');
+    }
     this.later(color, () => {
       a.rolling = false;
       a.face = value;
@@ -114,7 +116,7 @@ class DeathmatchStore {
         return;
       }
       this.afterRoll(color, st.legal);
-    }, TIMING.dice);
+    }, opts?.visualDone ? 60 : TIMING.dice);
   }
 
   move(color: Color, piece: number): void {

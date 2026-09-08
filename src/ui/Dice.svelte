@@ -18,7 +18,7 @@
     rolling?: boolean;
   }
 
-  let { color, value, enabled, size = 56, onRoll, rolling = false }: Props = $props();
+  let { color, value, enabled, size = 88, onRoll, rolling = false }: Props = $props();
 
   // Rotações que deixam cada face pra cima (frente = face visível).
   const FACE_ROT: Record<number, [number, number]> = {

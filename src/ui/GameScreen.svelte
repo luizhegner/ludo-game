@@ -162,34 +162,41 @@
       onPowerRelease={() => match.hideInfo()}
     >
       {#snippet overlay(cell)}
-        {#if dm}
-          {#if game.turn.phase !== 'over'}
-            {#each dmColors as c (c)}
-              {@const a = dmStore.anim[c]}
-              {@const pos = dmDicePos(c)}
-              <div
-                class="dice-pos dm-dice"
-                class:flip={dmFlip(c)}
-                style="left:{pos.x * cell}px; top:{pos.y * cell}px; --size:{Math.max(44, cell * 1.9)}px"
-              >
-                {#if settings.diceMode === 'physics'}
-                  <PhysDice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={(value) => dmStore.roll(c, value)} />
-                {:else}
-                  <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
-                {/if}
-              </div>
-            {/each}
-          {/if}
+        {#if game.turn.phase !== 'over' && settings.diceMode === 'physics'}
+          <PhysDice
+            boardPx={cell * 15}
+            tokens={dm
+              ? dmColors.map((c) => ({ id: c, color: c, homeX: dmDicePos(c).x, homeY: dmDicePos(c).y, enabled: dmStore.canRoll(c, game) }))
+              : [{ id: 'main', color: turn, homeX: dicePos.x, homeY: dicePos.y, enabled: canRoll }]}
+            faces={dm
+              ? Object.fromEntries(dmColors.map((c) => [c, dmStore.anim[c].rollingValue ?? dmStore.anim[c].face]))
+              : { main: diceValue }}
+            rolling={dm
+              ? Object.fromEntries(dmColors.map((c) => [c, dmStore.anim[c].rolling]))
+              : { main: match.rolling }}
+            onRoll={(id, value) => {
+              if (dm) dmStore.roll(id as Color, value, { visualDone: value != null });
+              else match.roll(value, { visualDone: value != null });
+            }}
+          />
+        {:else if dm && game.turn.phase !== 'over'}
+          {#each dmColors as c (c)}
+            {@const a = dmStore.anim[c]}
+            {@const pos = dmDicePos(c)}
+            <div
+              class="dice-pos dm-dice"
+              class:flip={dmFlip(c)}
+              style="left:{pos.x * cell}px; top:{pos.y * cell}px; --size:{Math.max(80, cell * 3.2)}px"
+            >
+              <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(80, cell * 3.2)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
+            </div>
+          {/each}
         {:else if game.turn.phase !== 'over'}
           <div
             class="dice-pos"
-            style="left:{dicePos.x * cell}px; top:{dicePos.y * cell}px; --size:{Math.max(44, cell * 1.9)}px"
+            style="left:{dicePos.x * cell}px; top:{dicePos.y * cell}px; --size:{Math.max(80, cell * 3.2)}px"
           >
-            {#if settings.diceMode === 'physics'}
-              <PhysDice color={turn} value={diceValue} enabled={canRoll} size={Math.max(44, cell * 1.9)} rolling={match.rolling} onRoll={(value) => match.roll(value)} />
-            {:else}
-              <Dice color={turn} value={diceValue} enabled={canRoll} size={Math.max(44, cell * 1.9)} rolling={match.rolling} onRoll={() => match.roll()} />
-            {/if}
+            <Dice color={turn} value={diceValue} enabled={canRoll} size={Math.max(80, cell * 3.2)} rolling={match.rolling} onRoll={() => match.roll()} />
           </div>
         {/if}
         {#if picks.length}
@@ -389,6 +396,8 @@
     transform: translate(-50%, -50%);
     width: var(--size);
     height: var(--size);
+    z-index: 3;
+    pointer-events: auto;
     /* desliza até a base do próximo jogador */
     transition: left 0.45s cubic-bezier(0.3, 0.8, 0.3, 1), top 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
   }
