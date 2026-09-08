@@ -4,8 +4,8 @@
   import { players } from '../stores/players.svelte';
   import { nav } from '../stores/nav.svelte';
   import { MODES, modeName } from '../lib/modes';
-  import { PERIOD_MS, modesPlayed, mostPlayedMode, standings, type Period } from '../lib/stats';
-  import { percent } from '../lib/format';
+  import { PERIOD_MS, modesPlayed, mostPlayedMode, type Period } from '../lib/stats';
+  import { eloStandings, roundedDelta, roundedRating } from '../lib/elo';
   import { sound } from '../lib/sound';
   import Avatar from './Avatar.svelte';
 
@@ -23,7 +23,7 @@
     return ms ? Date.now() - ms : null;
   });
 
-  const rows = $derived(activeMode ? standings(history.list, activeMode, since) : []);
+  const rows = $derived(activeMode ? eloStandings(history.list, activeMode, since) : []);
 
   const periods: { id: Period; label: string }[] = [
     { id: 'week', label: 'Semana' },
@@ -71,25 +71,28 @@
       <div class="table card">
         <div class="thead muted">
           <span class="pos">#</span>
-          <span class="who">Jogador</span>
+          <span class="who">Jogador · Elo</span>
           <span class="n">V</span>
           <span class="n">J</span>
-          <span class="n">%</span>
+          <span class="n">Δ</span>
         </div>
         {#each rows as r, i (r.playerId)}
           <button class="tr" onclick={() => { sound.play('tap'); if (players.get(r.playerId)) nav.go({ page: 'player', id: r.playerId }); }}>
             <span class="pos">{medals[i] ?? i + 1}</span>
             <span class="who">
               <Avatar avatar={players.avatarOf(r.playerId, r.avatar)} size={34} />
-              <span class="nm">{players.nameOf(r.playerId, r.name)}</span>
+              <span class="nm">
+                <span>{players.nameOf(r.playerId, r.name)}</span>
+                <span class="elo-line"><b>{roundedRating(r.rating)}</b> Elo <span class:up={roundedDelta(r.periodDelta) > 0} class:down={roundedDelta(r.periodDelta) < 0}>{roundedDelta(r.periodDelta) > 0 ? '+' : ''}{roundedDelta(r.periodDelta)}</span></span>
+              </span>
             </span>
-            <span class="n b">{r.wins}</span>
-            <span class="n">{r.games}</span>
-            <span class="n">{percent(r.wins / r.games)}</span>
+            <span class="n b">{r.periodWins}</span>
+            <span class="n">{r.periodGames}</span>
+            <span class="n" class:up={roundedDelta(r.periodDelta) > 0} class:down={roundedDelta(r.periodDelta) < 0}>{roundedDelta(r.periodDelta) > 0 ? '+' : ''}{roundedDelta(r.periodDelta)}</span>
           </button>
         {/each}
       </div>
-      <p class="muted foot">V = vitórias · J = partidas · ordenado por vitórias. O Elo por modo chega na fase 6.</p>
+      <p class="muted foot">Elo separado por modo · V = vitórias · J = partidas · Δ = variação no período.</p>
     {/if}
   {/if}
 </div>
@@ -222,9 +225,24 @@
   }
   .nm {
     font-weight: 700;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .elo-line {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .up {
+    color: #16834d;
+  }
+  .down {
+    color: var(--red);
   }
   .n {
     text-align: right;

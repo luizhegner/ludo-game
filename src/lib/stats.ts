@@ -1,6 +1,7 @@
 /**
  * Estatísticas derivadas do histórico (funções puras, sem Svelte).
- * Na fase 6 o Elo entra aqui do lado; por enquanto o ranking é por vitórias.
+ * A classificação legada por vitórias continua exportada para comparativos e
+ * backups antigos; a UI principal usa `lib/elo.ts` desde a fase 6.
  */
 import type { Color, GameState, Mode, PlayerSlot } from '../engine/types';
 

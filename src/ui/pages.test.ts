@@ -102,8 +102,8 @@ describe('páginas com dados', () => {
     expect(document.querySelectorAll('.chip').length).toBe(2); // Clássico, Rápido
     let trRows = [...document.querySelectorAll<HTMLElement>('.table .tr')];
     expect(trRows.length).toBe(2);
-    // clássico: 1 vitória cada → desempate por % (igual) → colocação média (igual) → partidas (igual) → nome
-    expect(trRows[0].textContent).toContain('Ana');
+    // clássico: Elo recalculado em ordem cronológica (Bia venceu a partida mais recente contra um rating maior)
+    expect(trRows[0].textContent).toContain('Bia');
     clickText('Rápido', '.chip');
     trRows = [...document.querySelectorAll<HTMLElement>('.table .tr')];
     expect(trRows[0].textContent).toContain('Ana');
@@ -116,7 +116,8 @@ describe('páginas com dados', () => {
     expect(document.querySelectorAll('.table .tr').length).toBe(2);
 
     // toca num jogador do ranking → detalhes
-    (document.querySelector('.table .tr') as HTMLElement).click();
+    const anaRow = [...document.querySelectorAll<HTMLElement>('.table .tr')].find((r) => r.textContent?.includes('Ana'))!;
+    anaRow.click();
     flushSync();
     expect(nav.route.page).toBe('player');
     expect(text()).toContain('Ana');
