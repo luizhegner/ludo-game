@@ -243,7 +243,7 @@ Three.js/cannon-es são **camada de apresentação** do dado: entregam um númer
 | **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON | adiantada na fase 2 (ver abaixo) |
 | **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | ✅ |
 | **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio | ✅ |
-| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages | em andamento (sons, PWA, Elo e dado físico já entraram; dado agora ocupa ~3,5 células da base) |
+| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages | em andamento (dado físico rola pelo tabuleiro inteiro) |
 
 ### O que a fase 2 entregou (além do combinado)
 

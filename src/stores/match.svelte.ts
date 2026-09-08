@@ -296,8 +296,8 @@ class MatchStore {
     this.tick();
   }
 
-  /** Rola o dado; `forced` vem do dado físico em modo "física real". */
-  roll(forced?: number): void {
+  /** Rola o dado; `forced` vem do dado físico. `visualDone` = a animação 3D já parou. */
+  roll(forced?: number, opts?: { visualDone?: boolean }): void {
     if (!this.state || this.state.turn.phase !== 'roll' || this.busy) return;
     if (isDeathmatch(this.state)) return; // Deathmatch: dmStore.roll(cor)
     if (engine.isTimeUp(this.state)) {
@@ -311,8 +311,10 @@ class MatchStore {
 
     this.rolling = true;
     this.rollingValue = value;
-    sound.play('dice');
-    haptic('diceStart');
+    if (!opts?.visualDone) {
+      sound.play('dice');
+      haptic('diceStart');
+    }
 
     this.later(() => {
       this.rolling = false;
@@ -340,7 +342,7 @@ class MatchStore {
       }
       this.commit(after, true, before);
       this.afterRoll(after);
-    }, TIMING.dice);
+    }, opts?.visualDone ? 60 : TIMING.dice);
   }
 
   move(piece: number): void {

@@ -1,26 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Color } from '../engine/types';
-  import type { DieScene } from '../lib/die/types';
+  import type { DiePose, DieToken } from '../lib/die/types';
+  import type { PhysicsTable } from '../lib/die/physics';
+  import { sound } from '../lib/sound';
+  import { haptic } from '../stores/settings.svelte';
   import Dice from './Dice.svelte';
 
   interface Props {
-    color: Color;
-    value: number | null;
-    enabled: boolean;
-    size?: number;
+    tokens: DieToken[];
+    boardPx: number;
     /** Sem `value`, o store sorteia; com `value`, o motor usa a face física. */
-    onRoll: (value?: number) => void;
-    /** Animação usada apenas pelo fallback CSS. */
-    rolling?: boolean;
+    onRoll: (id: string, value?: number) => void;
+    /** Fallback CSS: face e giro. */
+    faces?: Record<string, number | null>;
+    rolling?: Record<string, boolean>;
   }
 
-  let { color, value, enabled, size = 88, onRoll, rolling = false }: Props = $props();
+  let { tokens, boardPx, onRoll, faces = {}, rolling = {} }: Props = $props();
   let canvas: HTMLCanvasElement | undefined = $state();
-  let scene: DieScene | null = $state(null);
+  let table: PhysicsTable | null = $state(null);
   let fallback = $state(false);
-  let active = $state(false);
+  let poses: Record<string, DiePose> = $state({});
+  let grabbing: string | null = $state(null);
   let pointer: { x: number; y: number } | null = null;
+
+  const cell = $derived(boardPx / 15);
 
   onMount(() => {
     let alive = true;
@@ -30,22 +34,30 @@
         return;
       }
       try {
-        // O dado físico é um chunk separado: quem prefere o modo padrão não
-        // baixa Three/cannon até realmente abrir uma partida física.
-        const { PhysicsDie } = await import('../lib/die/physics');
+        const { PhysicsTable } = await import('../lib/die/physics');
         if (!alive || !canvas) return;
-        scene = new PhysicsDie(canvas, { color, size });
+        table = new PhysicsTable(canvas, {
+          size: boardPx,
+          onPose: (list) => {
+            const next: Record<string, DiePose> = {};
+            for (const p of list) next[p.id] = p;
+            poses = next;
+          },
+        });
       } catch {
-        // WebGL pode existir no navegador, mas estar bloqueado pelo aparelho ou
-        // pelo preview. O dado CSS continua sendo totalmente jogável.
         fallback = true;
       }
     })();
     return () => {
       alive = false;
-      scene?.dispose();
+      table?.dispose();
     };
   });
+
+  function soundStart() {
+    sound.play('dice');
+    haptic('diceStart');
+  }
 
   function supportsWebGL(target: HTMLCanvasElement): boolean {
     try {
@@ -56,117 +68,136 @@
   }
 
   $effect(() => {
-    scene?.resize(size);
+    table?.resize(boardPx);
   });
 
   $effect(() => {
-    scene?.setColor?.(color);
+    if (!table) return;
+    table.sync(tokens.map((t) => t.id));
+    for (const t of tokens) table.ensureDie(t.id, t.color, t.homeX, t.homeY);
   });
 
-  function down(e: PointerEvent) {
-    if (!enabled || active) return;
+  function down(id: string, e: PointerEvent) {
+    const tok = tokens.find((t) => t.id === id);
+    if (!tok?.enabled || grabbing || poses[id]?.rolling) return;
+    grabbing = id;
     pointer = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     e.preventDefault();
+    e.stopPropagation();
   }
 
   function up(e: PointerEvent) {
-    if (!pointer || !enabled || active) {
+    if (!grabbing || !pointer) {
       pointer = null;
+      grabbing = null;
       return;
     }
+    const id = grabbing;
     const dx = e.clientX - pointer.x;
     const dy = e.clientY - pointer.y;
     pointer = null;
+    grabbing = null;
     e.preventDefault();
-    if (!scene) {
-      onRoll();
+    if (!table) {
+      onRoll(id);
       return;
     }
-    active = true;
-    scene.roll(dx, dy).then((result) => {
-      active = false;
-      onRoll(result.value);
-    });
+    soundStart();
+    table.roll(id, dx, dy).then((result) => onRoll(id, result.value));
   }
 
-  function keydown(e: KeyboardEvent) {
-    if (enabled && !active && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      if (scene) {
-        active = true;
-        scene.roll().then((result) => {
-          active = false;
-          onRoll(result.value);
-        });
-      } else onRoll();
-    }
+  function keydown(id: string, e: KeyboardEvent) {
+    const tok = tokens.find((t) => t.id === id);
+    if (!tok?.enabled || grabbing || poses[id]?.rolling) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    soundStart();
+    if (table) table.roll(id).then((result) => onRoll(id, result.value));
+    else onRoll(id);
+  }
+
+  function left(t: DieToken): number {
+    return (poses[t.id]?.x ?? t.homeX) * cell;
+  }
+  function top(t: DieToken): number {
+    return (poses[t.id]?.y ?? t.homeY) * cell;
   }
 </script>
 
 {#if fallback}
-  <Dice color={color} value={value} {enabled} {size} {rolling} onRoll={() => onRoll()} />
+  {#each tokens as t (t.id)}
+    <div class="dice-pos" style="left:{t.homeX * cell}px; top:{t.homeY * cell}px; --size:{Math.max(80, cell * 3.2)}px">
+      <Dice color={t.color} value={faces[t.id] ?? 1} enabled={t.enabled} size={Math.max(80, cell * 3.2)} rolling={!!rolling[t.id]} onRoll={() => onRoll(t.id)} />
+    </div>
+  {/each}
 {:else}
-  <div
-    class="phys"
-    class:enabled
-    class:active
-    style="--s:{size}px"
-    role="button"
-    tabindex={enabled && !active ? 0 : -1}
-    aria-label={enabled ? 'Arraste ou toque no dado físico para rolar' : value ? `Dado: ${value}` : 'Dado físico'}
-    aria-busy={active}
-    onpointerdown={down}
-    onpointerup={up}
-    onpointercancel={() => (pointer = null)}
-    onkeydown={keydown}
-  >
-    <canvas bind:this={canvas} width={size} height={size}></canvas>
-    {#if active}<span class="sr">Dado rolando…</span>{/if}
+  <div class="table" style="--board:{boardPx}px">
+    <canvas bind:this={canvas} width={boardPx} height={boardPx}></canvas>
+    {#each tokens as t (t.id)}
+      {@const busy = !!poses[t.id]?.rolling}
+      <button
+        class="grab"
+        class:enabled={t.enabled && !busy}
+        class:busy
+        style="left:{left(t)}px; top:{top(t)}px; --s:{cell * 2.6}px"
+        disabled={!t.enabled || busy}
+        aria-label={t.enabled ? 'Arraste o dado para rolar pelo tabuleiro' : 'Dado'}
+        aria-busy={busy}
+        onpointerdown={(e) => down(t.id, e)}
+        onpointerup={up}
+        onpointercancel={() => { pointer = null; grabbing = null; }}
+        onkeydown={(e) => keydown(t.id, e)}
+      ></button>
+    {/each}
   </div>
 {/if}
 
 <style>
-  .phys {
-    position: relative;
-    width: var(--s);
-    height: calc(var(--s) * 1.16);
-    touch-action: none;
-    cursor: grab;
-    filter: saturate(0.92);
-  }
-  .phys.enabled {
-    filter: none;
-  }
-  .phys:focus-visible {
-    outline: 3px solid var(--edge, #1f2430);
-    outline-offset: 5px;
-    border-radius: 14px;
-  }
-  .phys:active {
-    cursor: grabbing;
+  .table {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
   }
   canvas {
     display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .grab {
+    position: absolute;
     width: var(--s);
     height: var(--s);
+    transform: translate(-50%, -50%);
+    border-radius: 18px;
+    pointer-events: auto !important;
+    touch-action: none;
+    cursor: grab;
+    background: transparent;
   }
-  .phys.enabled::after {
+  .grab:disabled {
+    cursor: default;
+  }
+  .grab.enabled::after {
     content: '';
     position: absolute;
-    inset: -10px;
+    inset: -8px;
     border-radius: 50%;
-    border: 2px solid currentColor;
-    color: var(--ink);
-    opacity: 0.32;
+    border: 3px solid #1f2430;
+    opacity: 0.35;
     animation: halo 1.2s ease-in-out infinite;
     pointer-events: none;
   }
-  .sr {
+  .grab:active {
+    cursor: grabbing;
+  }
+  .dice-pos {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
+    transform: translate(-50%, -50%);
+    width: var(--size);
+    height: var(--size);
+    z-index: 3;
   }
 </style>
