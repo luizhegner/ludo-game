@@ -2,7 +2,7 @@
  * Histórico de partidas encerradas.
  *
  * Guarda o GameState completo (com o log) de cada partida — é a fonte da
- * verdade pra estatísticas e, na fase 6, pro Elo. Fotos de avatar são
+ * verdade pra estatísticas e pro Elo. Fotos de avatar são
  * trocadas por um emoji ao arquivar pra não inflar o armazenamento; a UI
  * sempre resolve o avatar atual pelo `playerId` no cadastro.
  *

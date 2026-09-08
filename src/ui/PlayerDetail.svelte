@@ -1,6 +1,8 @@
 <script lang="ts">
   import { players } from '../stores/players.svelte';
   import { history } from '../stores/history.svelte';
+  import type { Mode } from '../engine/types';
+  import { ELO_MODES, eloEvolution, eloStandings, roundedRating } from '../lib/elo';
   import { nav } from '../stores/nav.svelte';
   import { COLOR_HEX } from '../lib/colors';
   import { modeName } from '../lib/modes';
@@ -22,6 +24,30 @@
 
   const avgPlace = $derived(stats.ranked ? (stats.placeSum / stats.ranked).toFixed(1).replace('.', ',') : '—');
   const winRate = $derived(stats.ranked ? percent(stats.wins / stats.ranked) : '—');
+
+  const eloRows = $derived(
+    ELO_MODES.map((mode) => {
+      const row = eloStandings(history.list, mode).find((r) => r.playerId === id);
+      return {
+        mode,
+        rating: row?.rating ?? 1000,
+        games: row?.games ?? 0,
+        wins: row?.wins ?? 0,
+        delta: row?.delta ?? 0,
+      };
+    }),
+  );
+  let chartMode = $state<Mode>('classic');
+  const chartPoints = $derived(eloEvolution(history.list, id, chartMode));
+  const chartPath = $derived.by(() => {
+    if (chartPoints.length < 2) return '';
+    const min = Math.min(...chartPoints.map((p) => p.rating));
+    const max = Math.max(...chartPoints.map((p) => p.rating));
+    const span = Math.max(1, max - min);
+    return chartPoints
+      .map((p, i) => `${(i / (chartPoints.length - 1)) * 100},${92 - ((p.rating - min) / span) * 78}`)
+      .join(' ');
+  });
 
   const medal = (place: number | null) => (place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : place ? `${place}º` : '—');
 
@@ -71,7 +97,34 @@
       <div class="stat card"><span class="v">{stats.powers}</span><span class="k">poderes</span></div>
     </section>
 
-    <p class="muted note">O Elo por modo e o gráfico de evolução chegam na fase 6.</p>
+    <section class="elo card">
+      <div class="section-head">
+        <h3>Elo por modo</h3>
+        <span class="muted small">início: 1000 · K: 32</span>
+      </div>
+      <div class="elo-list">
+        {#each eloRows as r (r.mode)}
+          <button class="elo-row" class:on={chartMode === r.mode} onclick={() => (chartMode = r.mode)}>
+            <span class="emode">{modeName(r.mode)}</span>
+            <span class="erating">{roundedRating(r.rating)}</span>
+            <span class="muted egames">{r.games}J · {r.wins}V</span>
+          </button>
+        {/each}
+      </div>
+      <div class="chart-title"><b>Evolução</b><span class="muted">{modeName(chartMode)}</span></div>
+      {#if chartPoints.length > 1}
+        <svg class="chart" viewBox="0 0 100 100" role="img" aria-label="Gráfico de evolução do Elo">
+          <line x1="0" y1="92" x2="100" y2="92" stroke="var(--line)" stroke-width="1" />
+          <line x1="0" y1="53" x2="100" y2="53" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 2" />
+          <polyline points={chartPath} fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          {#each chartPoints as p, i (i)}
+            <circle cx={(i / (chartPoints.length - 1)) * 100} cy={92 - ((p.rating - Math.min(...chartPoints.map((x) => x.rating))) / Math.max(1, Math.max(...chartPoints.map((x) => x.rating)) - Math.min(...chartPoints.map((x) => x.rating)))) * 78} r="2" fill="var(--ink)" />
+          {/each}
+        </svg>
+      {:else}
+        <p class="muted empty-chart">Ainda não há partidas nesse modo.</p>
+      {/if}
+    </section>
 
     {#if recent.length}
       <section>
@@ -192,10 +245,74 @@
     letter-spacing: 0.03em;
     line-height: 1.2;
   }
-  .note {
+  .elo {
+    padding: 12px;
+  }
+  .section-head,
+  .chart-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .section-head h3 {
+    margin-bottom: 0;
+  }
+  .small {
+    font-size: 11px;
+  }
+  .elo-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: 10px 0 14px;
+  }
+  .elo-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 6px;
+    text-align: left;
+    padding: 8px 10px;
+    min-height: 50px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: var(--bg);
+  }
+  .elo-row.on {
+    border-color: var(--ink);
+  }
+  .emode {
     font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .erating {
+    grid-row: 1 / 3;
+    grid-column: 2;
+    align-self: center;
+    font-size: 18px;
+    font-weight: 900;
+  }
+  .egames {
+    font-size: 11px;
+  }
+  .chart-title {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .chart {
+    display: block;
+    width: 100%;
+    height: 88px;
+    overflow: visible;
+  }
+  .empty-chart {
+    font-size: 12px;
+    margin: 12px 0 4px;
     text-align: center;
-    margin: 0;
   }
   h3 {
     margin: 0 0 8px;

@@ -241,9 +241,9 @@ Three.js/cannon-es são **camada de apresentação** do dado: entregam um númer
 | **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba | ✅ |
 | **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) | ✅ (Deathmatch com dado por jogador fixo na base; o dado rolando pelo tabuleiro fica pra fase 7) |
 | **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON | adiantada na fase 2 (ver abaixo) |
-| **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | página Ranking já existe (por vitórias); falta o Elo |
-| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio | |
-| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages | sons e PWA já entraram |
+| **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | ✅ |
+| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio | ✅ |
+| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages | sons, PWA, Elo e dado físico já entraram |
 
 ### O que a fase 2 entregou (além do combinado)
 
@@ -263,8 +263,7 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
 - **Histórico:** lista agrupada por dia; detalhe com resumo, tabela por jogador (⚔ ☠ 6 🎲) e **linha do tempo com
   horário** (começo, saídas da base, capturas, três 6, chegadas, fim). Revanche com os mesmos · apagar.
   A partida entra no histórico **no instante em que acaba** (mesmo que o app feche durante a animação).
-- **Ranking (provisório, por vitórias):** seletor de modo + período (semana/mês/ano/tudo). Vira Elo na fase 6 —
-  o histórico completo já está guardado, então o Elo será recalculado retroativamente.
+- **Ranking:** seletor de modo + período (semana/mês/ano/tudo). Desde a fase 6, o Elo é recalculado retroativamente a partir do histórico completo.
 - **Ajustes:** sons, vibração (3 níveis), mover sozinho, modo do dado (sorteio × física real), aparência (Creme × Aurora), **exportar/importar backup JSON**
   (jogadores + histórico + ajustes), apagar tudo, versão.
 - **Dentro da partida:** menu ⋮ → Jogadores agora usa o cadastro pra adicionar/substituir; fotos aparecem na base.
@@ -303,7 +302,12 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
   das peças em casa segura; centro "Alvo ⚔ 8"; bases com ⚔/☠; cabeçalho com quem lidera; reta final apagada com 🚫.
 - **Decisões [padrão]** que o usuário pode mudar: 15 s em tempo de jogo (não em tempo de parede); canhão só na estrela de
   cores presentes; sem jogada extra no 6 nem ao comer; peça protegida bloqueia a captura mas não o pouso (coexistência);
-  desempate por menos mortes e depois ordem de cor (Elo vem na fase 6).
+  desempate por menos mortes e depois ordem de cor (o Elo é derivado do histórico após a partida).
+
+### O que as fases 6 e 7 entregaram
+
+- **Elo** (`src/lib/elo.ts`): rating inicial 1000, K=32, cálculo par a par em partidas individuais e por média das duplas no 2v2. O replay é sempre feito a partir do histórico, em ordem cronológica; partidas abandonadas não alteram o rating. Jogadores adicionados no meio entram com 1000, e removidos/substituídos permanecem como últimos para evitar proteção artificial do Elo. A tela Ranking mostra o Elo por modo, partidas, vitórias e Δ do período; o detalhe do jogador mostra a evolução em gráfico.
+- **Dado físico** (`src/lib/die/` + `src/ui/PhysDice.svelte`): cena Three.js com corpo cannon-es, colisões com as bordas, sombra, arestas na cor do jogador, arrasto/toque e leitura da face superior. Se WebGL não estiver disponível, o componente cai automaticamente no dado CSS já existente. Ajustes → Dado alterna entre sorteio + animação e física real; nenhum resultado é decidido pela camada visual.
 
 ## 13. Fora de escopo (por enquanto)
 

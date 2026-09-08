@@ -178,7 +178,7 @@
           <span class="mark"></span>
           <span class="txt">
             <span class="tl">Física real</span>
-            <span class="muted small">A face que ficar pra cima é o resultado. Vale a partir do dado 3D (fase 7).</span>
+            <span class="muted small">A face que ficar pra cima é o resultado. O dado rola com física real e arrasto.</span>
           </span>
         </button>
       </div>

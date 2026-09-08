@@ -6,6 +6,7 @@
   import { nav } from '../stores/nav.svelte';
   import { COLOR_HEX, COLOR_NAME } from '../lib/colors';
   import { modeName } from '../lib/modes';
+  import { changesForGame, roundedDelta } from '../lib/elo';
   import { formatDuration, formatTime, formatWhen } from '../lib/format';
   import { rollsByColor, timelineOf } from '../lib/timeline';
   import { sound } from '../lib/sound';
@@ -36,6 +37,7 @@
   });
 
   const timeline = $derived(game ? timelineOf(game, nameOf) : []);
+  const eloChanges = $derived(game ? new Map(changesForGame(history.list, game.id).map((c) => [c.playerId, c.delta])) : new Map<string, number>());
   const medal = (place: number | null) => (place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : place ? `${place}º` : '·');
 
   function back() {
@@ -113,6 +115,7 @@
         <span class="n" title="Seis tirados">6</span>
         <span class="n" title="Lançamentos">🎲</span>
         {#if game.powers}<span class="n" title="Poderes pegos">✨</span>{/if}
+        {#if game.placements}<span class="n" title="Variação de Elo">Δ</span>{/if}
       </div>
       {#each rows as r (r.color)}
         <div class="tr" class:first={r.place === 1} style="--c:{COLOR_HEX[r.color]}">
@@ -126,6 +129,10 @@
           <span class="n">{r.p.stats.sixes}</span>
           <span class="n">{r.rolls}</span>
           {#if game.powers}<span class="n">{r.p.stats.powers}</span>{/if}
+          {#if game.placements}
+            {@const d = roundedDelta(eloChanges.get(r.p.playerId) ?? 0)}
+            <span class="n" class:up={d > 0} class:down={d < 0}>{d > 0 ? '+' : ''}{d}</span>
+          {/if}
         </div>
       {/each}
       {#if game.substituted?.length}
@@ -225,7 +232,7 @@
   .thead,
   .tr {
     display: grid;
-    grid-template-columns: 30px 1fr 34px 34px 34px 40px;
+    grid-template-columns: 30px minmax(0, 1fr) repeat(6, 34px);
     align-items: center;
     gap: 4px;
     padding: 8px 2px;
@@ -267,6 +274,12 @@
   .n {
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+  .up {
+    color: #16834d;
+  }
+  .down {
+    color: var(--red);
   }
   .subs {
     padding: 6px 2px 0;

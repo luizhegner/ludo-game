@@ -4,6 +4,8 @@
   import { nav } from '../stores/nav.svelte';
   import { sound } from '../lib/sound';
   import { plural } from '../lib/format';
+  import { mostPlayedMode } from '../lib/stats';
+  import { eloStandings, roundedRating } from '../lib/elo';
   import Avatar from './Avatar.svelte';
   import PlayerEditor from './PlayerEditor.svelte';
 
@@ -24,6 +26,12 @@
       }
     }
     return map;
+  });
+
+  const eloMode = $derived(mostPlayedMode(history.list));
+  const eloByPlayer = $derived.by(() => {
+    if (!eloMode) return new Map<string, number>();
+    return new Map(eloStandings(history.list, eloMode).map((r) => [r.playerId, r.rating]));
   });
 
   /** Quem jogou mais recentemente primeiro; quem nunca jogou, por nome. */
@@ -63,9 +71,9 @@
               <span class="nm">{p.name}</span>
               <span class="muted sub">
                 {#if s && s.games}
-                  {plural(s.games, 'partida', 'partidas')} · {plural(s.wins, 'vitória', 'vitórias')}
+                  {roundedRating(eloByPlayer.get(p.id) ?? 1000)} Elo · {plural(s.games, 'partida', 'partidas')} · {plural(s.wins, 'vitória', 'vitórias')}
                 {:else}
-                  ainda não jogou
+                  ainda não jogou · 1000 Elo
                 {/if}
               </span>
             </span>

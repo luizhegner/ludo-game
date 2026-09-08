@@ -2,7 +2,7 @@
  * Cadastro de jogadores (nome + avatar), persistido em localStorage.
  *
  * O id do jogador é o que liga tudo: partida em andamento, histórico e,
- * mais pra frente, o Elo. Nome e avatar podem ser editados à vontade sem
+ * o Elo derivado do histórico. Nome e avatar podem ser editados à vontade sem
  * quebrar nada — o histórico guarda o nome da época como cópia.
  */
 import { DEFAULT_AVATAR, isPhoto } from '../lib/avatars';

@@ -5,6 +5,8 @@
   import { playerOf } from '../engine/game';
   import { match } from '../stores/match.svelte';
   import { players } from '../stores/players.svelte';
+  import { history } from '../stores/history.svelte';
+  import { changesForGame, roundedDelta } from '../lib/elo';
   import { sound } from '../lib/sound';
   import Avatar from './Avatar.svelte';
 
@@ -19,6 +21,7 @@
   const rows = $derived((game.placements ?? []).map((c, i) => ({ color: c, place: i + 1, p: playerOf(game, c)! })));
 
   const rolls = $derived(game.log.filter((e) => e.type === 'roll').length);
+  const eloChanges = $derived(new Map(changesForGame(history.list, game.id).map((c) => [c.playerId, c.delta])));
 
   /** Título: no Deathmatch, quem bateu a meta de capturas é o destaque. */
   const title = $derived.by(() => {
@@ -54,6 +57,10 @@
             <Avatar avatar={players.avatarOf(r.p.playerId, r.p.avatar)} size={34} />
             <span class="nm">{players.nameOf(r.p.playerId, r.p.name)}</span>
             <span class="st muted">⚔{r.p.stats.captures} ☠{r.p.stats.deaths} · {r.p.stats.sixes}× 6{game.powers ? ` · ✨${r.p.stats.powers}` : ''}</span>
+            {#if eloChanges.has(r.p.playerId)}
+              {@const d = roundedDelta(eloChanges.get(r.p.playerId) ?? 0)}
+              <span class="elo-delta" class:up={d > 0} class:down={d < 0}>{d > 0 ? '+' : ''}{d} Elo</span>
+            {/if}
           </li>
         {/each}
       </ol>
@@ -131,6 +138,19 @@
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
+  }
+  .elo-delta {
+    grid-column: 3 / 5;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: right;
+    color: var(--muted);
+  }
+  .elo-delta.up {
+    color: #16834d;
+  }
+  .elo-delta.down {
+    color: var(--red);
   }
   .small {
     text-align: center;

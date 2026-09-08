@@ -6,7 +6,8 @@
   import { COLOR_HEX } from '../lib/colors';
   import { modeName } from '../lib/modes';
   import { formatWhen } from '../lib/format';
-  import { mostPlayedMode, standings, winnerOf } from '../lib/stats';
+  import { mostPlayedMode, winnerOf } from '../lib/stats';
+  import { eloStandings, roundedRating } from '../lib/elo';
   import { currentPlayer } from '../engine/game';
   import { sound } from '../lib/sound';
   import Avatar from './Avatar.svelte';
@@ -16,7 +17,7 @@
   const who = $derived(match.state && match.state.rules.mode !== 'deathmatch' ? currentPlayer(match.state) : undefined);
 
   const topMode = $derived(mostPlayedMode(history.list));
-  const top3 = $derived(topMode ? standings(history.list, topMode).slice(0, 3) : []);
+  const top3 = $derived(topMode ? eloStandings(history.list, topMode).slice(0, 3) : []);
   const recent = $derived(history.list.slice(0, 3));
 
   const medals = ['🥇', '🥈', '🥉'];
@@ -69,7 +70,7 @@
             <span class="medal">{medals[i]}</span>
             <Avatar avatar={players.avatarOf(s.playerId, s.avatar)} size={36} />
             <span class="nm">{players.nameOf(s.playerId, s.name)}</span>
-            <span class="muted st">{s.wins} {s.wins === 1 ? 'vitória' : 'vitórias'} · {s.games} {s.games === 1 ? 'partida' : 'partidas'}</span>
+            <span class="muted st">{roundedRating(s.rating)} Elo · {s.wins} {s.wins === 1 ? 'vitória' : 'vitórias'} · {s.games} {s.games === 1 ? 'partida' : 'partidas'}</span>
           </li>
         {/each}
       </ol>

@@ -15,6 +15,7 @@
   import Avatar from './Avatar.svelte';
   import Board from './Board.svelte';
   import Dice from './Dice.svelte';
+  import PhysDice from './PhysDice.svelte';
   import GameMenu from './GameMenu.svelte';
   import GameOver from './GameOver.svelte';
 
@@ -171,7 +172,11 @@
                 class:flip={dmFlip(c)}
                 style="left:{pos.x * cell}px; top:{pos.y * cell}px; --size:{Math.max(44, cell * 1.9)}px"
               >
-                <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
+                {#if settings.diceMode === 'physics'}
+                  <PhysDice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={(value) => dmStore.roll(c, value)} />
+                {:else}
+                  <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
+                {/if}
               </div>
             {/each}
           {/if}
@@ -180,7 +185,11 @@
             class="dice-pos"
             style="left:{dicePos.x * cell}px; top:{dicePos.y * cell}px; --size:{Math.max(44, cell * 1.9)}px"
           >
-            <Dice color={turn} value={diceValue} enabled={canRoll} size={Math.max(44, cell * 1.9)} rolling={match.rolling} onRoll={() => match.roll()} />
+            {#if settings.diceMode === 'physics'}
+              <PhysDice color={turn} value={diceValue} enabled={canRoll} size={Math.max(44, cell * 1.9)} rolling={match.rolling} onRoll={(value) => match.roll(value)} />
+            {:else}
+              <Dice color={turn} value={diceValue} enabled={canRoll} size={Math.max(44, cell * 1.9)} rolling={match.rolling} onRoll={() => match.roll()} />
+            {/if}
           </div>
         {/if}
         {#if picks.length}
