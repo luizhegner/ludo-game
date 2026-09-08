@@ -4,3 +4,5 @@ dev-dist
 .vite
 *.log
 .DS_Store
+
+__pycache__/

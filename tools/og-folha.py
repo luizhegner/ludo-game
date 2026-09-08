@@ -1,33 +1,37 @@
 #!/usr/bin/env python3
 """
-Separa a FOLHA de ícones do jogo original (tira horizontal, fundo xadrez
-"de transparência" queimado no PNG) em ícones PNG 128×128 com fundo
-transparente de verdade, salvos em `src/assets/art/og/powers/`.
+Separa a FOLHA de ícones do jogo original (tira horizontal com o fundo xadrez
+"de transparência" queimado no PNG) em ícones 128×128 de fundo transparente,
+salvos em `src/assets/art/og/powers/`.
 
 Ordem padrão da folha (esquerda → direita), igual ao mapeamento combinado:
   rocket · shield · fire · freeze · mine · bomb · spring · magic-dice
 
 Como funciona:
   1) se o PNG já tem alfa verdadeiro, usa o alfa como fundo;
-  2) senão, detecta as duas cores do xadrez nas bordas; com xadrez ESCURO o
-     fundo é "qualquer cinza escuro" (casas, sombras e antialiasing), com o
-     xadrez CLARO é "perto de uma das duas cores" (tolerância `--tol`) — o
-     flood-fill por conectividade protege buracos fechados dentro do ícone
-     (tipo o miolo branco do foguete) e as partes claras/muitos-saturadas do
-     ícone nunca são confundidas com o fundo;
-  3) flood-fill a partir das bordas define o fundo; o resto é ícone;
-  4) corta em N colunas (segmentos contíguos de primeiro plano; se a conta
-     não fechar em N, divide em partes iguais), centraliza o conteúdo em
-     ~85% da tela (regra 2 do ARTE.md §1) e salva 128×128 otimizados;
-  5) `--contato` salva uma prévia da folha limpa + tira dos recortes, e
-     `--debug` salva a máscara crua — pra conferir de olho.
+  2) senão, detecta as cores do xadrez nas bordas. Com xadrez ESCURO, fundo é
+     "cinza até a casa clara + folga" (casa clara, casa escura, sombras e o
+     antialiasing da borda do sprite — tudo cinzento e apagado) mais o que
+     bater com uma das duas cores; com xadrez CLARO vale só "perto de uma das
+     duas cores". Flood-fill a partir das bordas decide o que é fundo —
+     buraco fechado dentro do ícone (miolo branco do foguete) sobrevive;
+  3) MATTE SUAVE: cada pixel que sobrou recebe alfa proporcional à distância
+     dele pra cor do fundo (pixels saturados do desenho ficam opacos). É isso
+     que come a franja de antialiasing que, composta sobre a placa clara da
+     casa, parece "ícone com fundo branco";
+  4) corta em N colunas (segmentos de primeiro plano; se não der N, divide em
+     partes iguais), centra o conteúdo em ~85% da tela (regra 2 do ARTE.md §1)
+     e salva 128×128 otimizados;
+  5) --contato monta uma prévia dupla: os recortes a 40 px SOBRE A PLACA DA
+     FAMÍLIA (como o jogo desenha) e a 128 px sobre branco — é assim que tem
+     que ser conferido, não sobre fundo escuro; --debug salva a máscara.
 
 Uso:
   pip install pillow
-  python3 tools/og-folha.py folha.png                     # 8 nomes padrão
-  python3 tools/og-folha.py folha.png out/                # outra pasta
-  python3 tools/og-folha.py folha.png --nomes a b c d --contato --debug
-  python3 tools/og-folha.py folha.png --tol=24            # máscara mais gorda
+  python3 tools/og-folha.py folha.png                       # 8 nomes padrão
+  python3 tools/og-folha.py folha.png out/ --contato
+  python3 tools/og-folha.py folha.png --nomes a b c d       # outra lista
+  python3 tools/og-folha.py folha.png --tol=24              # ajuste fino
 
 Nada disso é obrigatório pro jogo — é só a linha de montagem da arte.
 """
@@ -50,7 +54,10 @@ NAMES = ['rocket', 'shield', 'fire', 'freeze', 'mine', 'bomb', 'spring', 'magic-
 
 CELL_PX = 128    # lado do PNG final (mesmo do tools/og-icones.py)
 FILL = 0.85      # conteúdo ocupando ~85% da tela (ARTE.md §1, regra 2)
-TOL = 30         # distância RGB pra considerar "cor do xadrez"
+TOL = 26         # distância RGB pra "é exatamente a cor do xadrez"
+FADE_LO = 16     # distância do fundo abaixo disso = transparente (matte suave)
+FADE_HI = 90     # acima disso = opaco
+SAT_KEEP = 60    # pixel saturado (max-min) acima disso nunca some (é do desenho)
 
 
 def dist(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
@@ -71,7 +78,6 @@ def border_colors(rgb: Image.Image, tol: int) -> 'tuple[tuple[int, int, int], tu
             cnt[px[x, y]] += 1
     if not cnt:
         raise SystemExit('sem pixels de borda pra amostrar?')
-    # agrupa em clusters de 8 níveis por canal e pega os dois maiores
     buck: dict[tuple[int, int, int], list[tuple[tuple[int, int, int], int]]] = {}
     for c, n in cnt.items():
         buck.setdefault((c[0] // 8, c[1] // 8, c[2] // 8), []).append((c, n))
@@ -80,54 +86,31 @@ def border_colors(rgb: Image.Image, tol: int) -> 'tuple[tuple[int, int, int], tu
         key=lambda t: -t[1],
     )
     a = clusters[0][0]
-    # só aceita 2ª cor se ela também for "de borda" (o xadrez cobre a folha toda)
     b = clusters[1][0] if len(clusters) > 1 and clusters[1][1] > clusters[0][1] * 0.15 else a
-    if sum(a) < sum(b):  # mais clara primeiro
+    if sum(a) < sum(b):
         a, b = b, a
-    if dist(a, b) <= tol:  # as "duas cores" são a mesma → fundo sólido
+    if dist(a, b) <= tol:
         b = a
     return a, b
 
 
-def checker_cand(rgb: Image.Image, ca: tuple[int, int, int], cb: tuple[int, int, int], tol: int) -> 'tuple[bytearray, str]':
-    """
-    Candidatos a fundo (bytearray w*h, 1 = parece o xadrez).
-
-    Xadrez ESCURO (casas ≤ 160): fundo é "qualquer cinza escuro" — vale pras
-    casas claras e escuras, pras sombras que os ícones projetam e pros pixels
-    de antialiasing; os cinzas dos ícones (prancheta ~150+, frisos ~216+) são
-    mais claros que a casa clara+folga e as cores vivas são saturadas, então
-    nada deles é comido. Xadrez CLARO: cada cor por vez (tolerância `--tol`),
-    que é o caso em que "branco do ícone" não pode ser confundido com fundo;
-    o flood-fill por conectividade protege o que estiver fechado dentro do
-    ícone (miolo branco do foguete, bolinha do meio da mina etc.).
-    """
+def make_fg(rgb: Image.Image, tol: int):
+    """Retorna (fg, dark, ca, cb, lim, how) — fg[x]=1 é desenho, 0 é fundo alcançável."""
     w, h = rgb.size
     px = rgb.load()
+    ca, cb = border_colors(rgb, tol)
+    dark = max(ca) <= 160
     cand = bytearray(w * h)
-    light = max(ca)
-    if light <= 160:  # xadrez escuro → regra do "cinza escuro"
-        lim = light + 23
-        for y in range(h):
-            base = y * w
-            for x in range(w):
-                p = px[x, y]
-                if max(p) - min(p) <= 12 and min(p) <= lim and max(p) <= lim:
-                    cand[base + x] = 1
-        how = f'xadrez escuro (casas {ca}/{cb}, cinza ≤ {lim})'
-    else:  # xadrez claro → por cor, com tolerância
-        for y in range(h):
-            base = y * w
-            for x in range(w):
-                p = px[x, y]
-                if dist(p, ca) <= tol or dist(p, cb) <= tol:
-                    cand[base + x] = 1
-        how = f'xadrez claro (cores {ca}/{cb}, tol {tol})'
-    return cand, how
-
-
-def flood_bg(cand: bytearray, w: int, h: int) -> bytearray:
-    """Fundo = candidatos alcançáveis a partir das bordas (flood-fill 4-vizinhos)."""
+    lim = max(ca) + 33  # teto de "cinza do fundo" (casa clara + sombra + AA)
+    for y in range(h):
+        base = y * w
+        for x in range(w):
+            p = px[x, y]
+            sat = max(p) - min(p)
+            if dark and sat <= 16 and max(p) <= lim:
+                cand[base + x] = 1  # cinza escuro/claro do xadrez (ou sombra dele)
+            elif dist(p, ca) <= tol or dist(p, cb) <= tol:
+                cand[base + x] = 1
     seen = bytearray(w * h)
     q: deque[int] = deque()
 
@@ -153,50 +136,74 @@ def flood_bg(cand: bytearray, w: int, h: int) -> bytearray:
             push(i - w)
         if y < h - 1:
             push(i + w)
-    return seen
+    fg = bytearray(1 - v for v in seen)
+    how = f'xadrez {"escuro" if dark else "claro"} (cores {ca}/{cb}, tol {tol})'
+    return fg, dark, ca, cb, lim, how
 
 
-def make_mask(im: Image.Image, tol: int) -> 'tuple[Image.Image, str]':
-    """Máscara 'L' (255 = fundo, 0 = ícone). Usa alfa real se houver; senão, xadrez."""
-    w, h = im.size
-    if im.mode == 'RGBA':
-        px = im.load()
-        step = 17
-        clear = total = 0
-        for i in range(0, w * h, step):
-            p = px[i % w, i // w]
-            total += 1
-            if p[3] <= 8:
-                clear += 1
-        if total and clear / total > 0.05:
-            a = im.getchannel('A').point(lambda v: 255 if v <= 8 else 0)
-            return a, 'alfa'
-    rgb = im.convert('RGB')
-    ca, cb = border_colors(rgb, tol)
-    cand, how = checker_cand(rgb, ca, cb, tol)
-    seen = flood_bg(cand, w, h)
-    mask = Image.frombytes('L', (w, h), bytes((255 * v for v in seen)))
-    return mask, how
+def soft_alpha(fg: bytearray, rgb: Image.Image, dark: bool, ca: tuple[int, int, int], cb: tuple[int, int, int], lim: int) -> bytearray:
+    """
+    Matte suave LOCAL: cada pixel do desenho começa opaco; só quem toca o fundo
+    (ou a franja já desbotada dele) pode desbotar, pela distância até a cor do
+    xadrez. Assim a franja de antialiasing some, mas um miolo claro FECHADO
+    dentro do ícone (corpo branco do foguete sobre xadrez claro) sobrevive —
+    uma passada global de "perto do fundo = fade" comeria ele.
+    """
+    w, h = rgb.size
+    px = rgb.load()
+    a = bytearray(255 if fg[i] else 0 for i in range(w * h))
+
+    def fade(p: tuple[int, int, int]) -> int:
+        if max(p) - min(p) >= SAT_KEEP:
+            return 255
+        d = min(dist(p, ca), dist(p, cb))
+        if dark and max(p) <= lim and d > FADE_LO:
+            d = max(d, lim - max(p) + FADE_LO)
+        if d <= FADE_LO:
+            return 0
+        if d >= FADE_HI:
+            return 255
+        return round(255 * (d - FADE_LO) / (FADE_HI - FADE_LO))
+
+    for _ in range(8):  # converge rápido: a frente anda 1 px por volta
+        changed = False
+        for y in range(h):
+            base = y * w
+            for x in range(w):
+                i = base + x
+                cur = a[i]
+                if cur == 0:
+                    continue
+                nb = 255
+                for j in (i - 1, i + 1, i - w, i + w):
+                    if 0 <= j < w * h and a[j] < nb:
+                        nb = a[j]
+                if nb >= 255:
+                    continue
+                cand = fade(px[x, y])
+                if cand < cur:
+                    a[i] = cand
+                    changed = True
+        if not changed:
+            break
+    return a
 
 
-def split_columns(mask: Image.Image, n: int) -> 'list[tuple[int, int]]':
-    """Segmentos contíguos de colunas com primeiro plano; se não der N, divide igual."""
-    w, h = mask.size
-    m = mask.load()
-    fg = [False] * w
+def split_columns(fg: bytearray, w: int, h: int, n: int) -> 'list[tuple[int, int]]':
+    colfg = [False] * w
     for x in range(w):
         for y in range(h):
-            if m[x, y] == 0:
-                fg[x] = True
+            if fg[y * w + x]:
+                colfg[x] = True
                 break
     segs: list[tuple[int, int]] = []
     start = None
     for x in range(w + 1):
-        on = x < w and fg[x]
+        on = x < w and colfg[x]
         if on and start is None:
             start = x
         elif not on and start is not None:
-            if x - start > max(4, w // (n * 6)):  # poeira entre ícones vira nada
+            if x - start > max(4, w // (n * 6)):
                 segs.append((start, x))
             start = None
     if len(segs) == n:
@@ -205,43 +212,40 @@ def split_columns(mask: Image.Image, n: int) -> 'list[tuple[int, int]]':
     return [(int(round(i * step)), int(round((i + 1) * step))) for i in range(n)]
 
 
-def cut_icon(rgb: Image.Image, mask: Image.Image, x0: int, x1: int) -> Image.Image:
-    """Recorta o ícone de uma fatia, centra em CELL_PX com ~FILL de conteúdo."""
-    m = mask.load()
+def cut_icon(rgb: Image.Image, alpha: bytearray, x0: int, x1: int) -> Image.Image:
+    w, h = rgb.size
     px = rgb.load()
-    bx0, by0, bx1, by1 = x1, mask.height, x0, 0
-    for x in range(x0, x1):
-        for y in range(mask.height):
-            if m[x, y] == 0:
-                if x < bx0:
-                    bx0 = x
-                if x > bx1:
-                    bx1 = x
-                if y < by0:
-                    by0 = y
-                if y > by1:
-                    by1 = y
+    bx0, by0, bx1, by1 = x1, h, x0, 0
+    for y in range(h):
+        for x in range(x0, x1):
+            if alpha[y * w + x] > 24:
+                if x < bx0: bx0 = x
+                if x > bx1: bx1 = x
+                if y < by0: by0 = y
+                if y > by1: by1 = y
     if bx1 < bx0 or by1 < by0:
-        raise SystemExit('fatia sem primeiro plano — a máscara comeu o ícone todo (baixe --tol?)')
-    crop = rgb.crop((bx0, by0, bx1 + 1, by1 + 1))
-    alpha = Image.new('L', crop.size, 255)
-    am = alpha.load()
-    for y in range(crop.height):
-        for x in range(crop.width):
-            if m[bx0 + x, by0 + y] == 255:
-                am[x, y] = 0
-    crop.putalpha(alpha)
-    side = CELL_PX * FILL
-    s = side / max(crop.size)
-    nw, nh = max(1, round(crop.width * s)), max(1, round(crop.height * s))
-    crop = crop.resize((nw, nh), Image.LANCZOS)
+        raise SystemExit('fatia sem primeiro plano — a máscara comeu o ícone todo (suba --tol?)')
     out = Image.new('RGBA', (CELL_PX, CELL_PX), (0, 0, 0, 0))
-    out.paste(crop, ((CELL_PX - nw) // 2, (CELL_PX - nh) // 2), crop)
+    op = Image.new('RGB', (bx1 - bx0 + 1, by1 - by0 + 1), (0, 0, 0))
+    oa = Image.new('L', op.size, 0)
+    opp, oap = op.load(), oa.load()
+    for y in range(by0, by1 + 1):
+        for x in range(bx0, bx1 + 1):
+            a = alpha[y * w + x]
+            if a == 0:
+                continue
+            opp[x - bx0, y - by0] = px[x, y]
+            oap[x - bx0, y - by0] = a
+    op = op.convert('RGBA')
+    op.putalpha(oa)
+    s = (CELL_PX * FILL) / max(op.size)
+    nw, nh = max(1, round(op.width * s)), max(1, round(op.height * s))
+    op = op.resize((nw, nh), Image.LANCZOS)
+    out.paste(op, ((CELL_PX - nw) // 2, (CELL_PX - nh) // 2), op)
     return out
 
 
 def parse(argv: list[str]) -> tuple[str, str, list[str], int, bool, bool]:
-    src = ''
     names: list[str] = []
     tol = TOL
     contato = debug = False
@@ -272,47 +276,62 @@ def parse(argv: list[str]) -> tuple[str, str, list[str], int, bool, bool]:
     if not rest:
         print(__doc__)
         sys.exit(2)
-    src = rest[0]
-    out_dir = rest[1] if len(rest) > 1 else OUT_DIR
-    return src, out_dir, names or NAMES, tol, contato, debug
+    return rest[0], (rest[1] if len(rest) > 1 else OUT_DIR), names or NAMES, tol, contato, debug
 
 
 def main(argv: list[str]) -> None:
     src, out_dir, names, tol, contato, debug = parse(argv[1:])
     im = Image.open(src)
-    mask, how = make_mask(im, tol)
+    w, h = im.size
+    rgb = im.convert('RGB')
+    src_alpha = None
+    fg = dark = lim = ca = cb = how = None
+    if im.mode == 'RGBA':
+        a = im.getchannel('A')
+        av = a.get_flattened_data() if hasattr(a, 'get_flattened_data') else list(a.getdata())
+        if any(v <= 8 for v in av[::17]):  # alfa real manda (xadrez é só do visual do editor)
+            fg = bytearray(1 if v > 8 else 0 for v in av)
+            src_alpha = a
+            how = 'alfa'
+            dark, ca, cb, lim = False, (0, 0, 0), (0, 0, 0), 0
+    if fg is None:
+        fg, dark, ca, cb, lim, how = make_fg(rgb, tol)
+    if src_alpha is None:
+        alpha = soft_alpha(fg, rgb, dark, ca, cb, lim)
+    else:
+        av2 = src_alpha.get_flattened_data() if hasattr(src_alpha, 'get_flattened_data') else list(src_alpha.getdata())
+        alpha = bytearray(v for v in av2)
     n = len(names)
-    segs = split_columns(mask, n)
+    segs = split_columns(fg, w, h, n)
     if len(segs) != n:
-        print(f'aviso: achei {len(segs)} segmentos de primeiro plano, esperava {n}; cortando em partes iguais', file=sys.stderr)
-        w = im.width
+        print(f'aviso: {len(segs)} segmentos, esperava {n}; cortando em partes iguais', file=sys.stderr)
         segs = [(round(i * w / n), round((i + 1) * w / n)) for i in range(n)]
     print(f'fundo removido por: {how}  ·  {n} ícones  ·  tol={tol}')
     os.makedirs(out_dir, exist_ok=True)
-    rgb = im.convert('RGB')
-    strip = Image.new('RGBA', (n * 40, 40), (60, 60, 60, 255))
-    for i, (name, (x0, x1)) in enumerate(zip(names, segs)):
-        icon = cut_icon(rgb, mask, x0, x1)
-        out = os.path.join(out_dir, f'{name}.png')
-        icon.save(out, optimize=True)
-        t = icon.resize((40, 40), Image.LANCZOS)
-        strip.paste(t, (i * 40, 0), t)
-        print(f'{name:<12} col {x0:>4}–{x1:<4} → {out} ({os.path.getsize(out) // 1024 + 1} KB)')
+    icons: list[tuple[str, Image.Image]] = []
+    for name, (x0, x1) in zip(names, segs):
+        icon = cut_icon(rgb, alpha, x0, x1)
+        icon.save(os.path.join(out_dir, f'{name}.png'), optimize=True)
+        icons.append((name, icon))
+        print(f'{name:<11} col {x0:>4}–{x1:<4} → {out_dir}/{name}.png ({os.path.getsize(os.path.join(out_dir, name + ".png")) // 1024 + 1} KB)')
     if debug:
-        mask.save(os.path.splitext(src)[0] + '.mask.png')
+        Image.frombytes('L', (w, h), bytes(alpha)).save(os.path.splitext(src)[0] + '.fg.png')
     if contato:
-        w, h = im.size
-        over = rgb.convert('RGBA')
-        pxx = over.load()
-        mm = mask.load()
-        for y in range(h):
-            for x in range(w):
-                if mm[x, y] == 255:
-                    r = (x // 16 + y // 16) % 2 * 32 + 160
-                    pxx[x, y] = (r, r, r, 255)
-        over.paste(strip, (0, h - 40), strip)
-        over.save(os.path.splitext(src)[0] + '.contato.png')
-        print(f'prévia: {os.path.splitext(src)[0]}.contato.png')
+        # prévia 1: sobre placa da família a 40 px (44 no tabuleiro); prévia 2: 128 px sobre branco
+        pastels = {'rocket': '#ffe1bf', 'shield': '#d2e8ff', 'fire': '#ffcfcf', 'freeze': '#d2e8ff',
+                   'mine': '#ffcfcf', 'bomb': '#ffcfcf', 'spring': '#ffe1bf', 'magic-dice': '#e9d8ff'}
+        cell = 46
+        top = Image.new('RGB', (n * cell + 1, cell + 1), (244, 240, 232))
+        bot = Image.new('RGBA', (n * 136 + 1, 137), (255, 255, 255, 255))
+        for i, (name, icon) in enumerate(icons):
+            paste = icon.resize((40, 40), Image.LANCZOS)
+            tile = Image.new('RGB', (40, 40), pastels.get(name, '#e9d8ff'))
+            tile.paste(paste, (0, 0), paste)
+            top.paste(tile, (i * cell + 3, 3))
+            bot.paste(icon, (i * 136 + 4, 4), icon)
+        top.save(os.path.splitext(src)[0] + '.placas.png')
+        bot.convert('RGB').save(os.path.splitext(src)[0] + '.128.png')
+        print(f'prévias: {os.path.splitext(src)[0]}.placas.png (como no jogo) · {os.path.splitext(src)[0]}.128.png (branco)')
 
 
 if __name__ == '__main__':
