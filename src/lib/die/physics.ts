@@ -21,8 +21,9 @@ import { COLOR_HEX } from '../colors';
 import { topFace, validFace } from './face';
 import type { DieRoll, DieScene, DieSceneOptions } from './types';
 
-const WORLD_SIZE = 2.35;
-const DIE_SIZE = 0.92;
+const WORLD_SIZE = 1.05;
+const DIE_SIZE = 0.98;
+const VIEW = 0.78;
 const MAX_DRAG = 180;
 
 /**
@@ -33,7 +34,7 @@ const MAX_DRAG = 180;
  */
 export class PhysicsDie implements DieScene {
   readonly canvas: HTMLCanvasElement;
-  readonly color: Color;
+  color: Color;
   readonly scene: Scene;
   readonly camera: OrthographicCamera;
   readonly renderer: WebGLRenderer;
@@ -61,9 +62,9 @@ export class PhysicsDie implements DieScene {
 
     this.scene = new Scene();
     this.scene.background = null;
-    this.camera = new OrthographicCamera(-3.2, 3.2, 3.2, -3.2, 0.1, 30);
-    this.camera.position.set(4.4, 5.1, 6.2);
-    this.camera.lookAt(0, 0.35, 0);
+    this.camera = new OrthographicCamera(-VIEW, VIEW, VIEW, -VIEW, 0.1, 30);
+    this.camera.position.set(2.4, 3.2, 3.4);
+    this.camera.lookAt(0, DIE_SIZE / 2, 0);
 
     this.renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -78,7 +79,7 @@ export class PhysicsDie implements DieScene {
     key.shadow.mapSize.set(512, 512);
     this.scene.add(key);
 
-    this.ground = new Mesh(new PlaneGeometry(5.8, 5.8), new ShadowMaterial({ color: '#000000', opacity: 0.18 }));
+    this.ground = new Mesh(new PlaneGeometry(3.2, 3.2), new ShadowMaterial({ color: '#000000', opacity: 0.22 }));
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
@@ -140,13 +141,13 @@ export class PhysicsDie implements DieScene {
     this.rollStarted = performance.now();
     this.settleFor = 0;
     this.body.wakeUp();
-    this.body.position.set(0, 1.15, 0);
+    this.body.position.set(0, DIE_SIZE / 2 + 0.55, 0);
     this.body.velocity.set(0, 0, 0);
     this.body.angularVelocity.set(0, 0, 0);
     this.body.quaternion.setFromEuler(Math.random() * 2, Math.random() * 2, Math.random() * 2);
-    const impulse = new CANNON.Vec3(this.dragX / MAX_DRAG * 2.1, 2.4, -this.dragY / MAX_DRAG * 2.1);
+    const impulse = new CANNON.Vec3(this.dragX / MAX_DRAG * 1.15, 1.55, -this.dragY / MAX_DRAG * 1.15);
     this.body.applyImpulse(impulse, this.body.position);
-    this.body.angularVelocity.set((Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15);
+    this.body.angularVelocity.set((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
     this.startFrame();
     return this.current;
   }
@@ -154,6 +155,12 @@ export class PhysicsDie implements DieScene {
   resize(size: number): void {
     const px = Math.max(32, size);
     this.renderer.setSize(px, px, false);
+  }
+
+  setColor(color: Color): void {
+    this.color = color;
+    (this.edge.material as LineBasicMaterial).color.set(COLOR_HEX[color]);
+    if (!this.current) this.renderer.render(this.scene, this.camera);
   }
 
   dispose(): void {

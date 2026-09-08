@@ -170,12 +170,12 @@
               <div
                 class="dice-pos dm-dice"
                 class:flip={dmFlip(c)}
-                style="left:{pos.x * cell}px; top:{pos.y * cell}px; --size:{Math.max(44, cell * 1.9)}px"
+                style="left:{pos.x * cell}px; top:{pos.y * cell}px; --size:{Math.max(80, cell * 3.5)}px"
               >
                 {#if settings.diceMode === 'physics'}
-                  <PhysDice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={(value) => dmStore.roll(c, value)} />
+                  <PhysDice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(80, cell * 3.5)} rolling={a.rolling} onRoll={(value) => dmStore.roll(c, value)} />
                 {:else}
-                  <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
+                  <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(80, cell * 3.5)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
                 {/if}
               </div>
             {/each}
@@ -389,6 +389,8 @@
     transform: translate(-50%, -50%);
     width: var(--size);
     height: var(--size);
+    z-index: 3;
+    pointer-events: auto;
     /* desliza até a base do próximo jogador */
     transition: left 0.45s cubic-bezier(0.3, 0.8, 0.3, 1), top 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
   }

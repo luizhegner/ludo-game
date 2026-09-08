@@ -17,5 +17,6 @@ export interface DieScene {
   readonly running: boolean;
   roll(dragX?: number, dragY?: number): Promise<DieRoll>;
   resize(size: number): void;
+  setColor?(color: Color): void;
   dispose(): void;
 }

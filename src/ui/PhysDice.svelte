@@ -15,7 +15,7 @@
     rolling?: boolean;
   }
 
-  let { color, value, enabled, size = 64, onRoll, rolling = false }: Props = $props();
+  let { color, value, enabled, size = 88, onRoll, rolling = false }: Props = $props();
   let canvas: HTMLCanvasElement | undefined = $state();
   let scene: DieScene | null = $state(null);
   let fallback = $state(false);
@@ -57,6 +57,10 @@
 
   $effect(() => {
     scene?.resize(size);
+  });
+
+  $effect(() => {
+    scene?.setColor?.(color);
   });
 
   function down(e: PointerEvent) {
