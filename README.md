@@ -1,5 +1,10 @@
 # Ludo
 
+> ## 🤖 Agente de IA (ou humano): comece pelo [`AGENTS.md`](AGENTS.md)
+> Ele é o ponto de entrada: **o que ler primeiro** (as introduções de cada doc, na
+> ordem), as **skills** em [`skills/`](skills/) a seguir por tarefa e as
+> **invariantes** do projeto. Leia a introdução de tudo **antes** de codar.
+
 Ludo offline pra jogar com os amigos no mesmo celular (PWA). Regras, decisões e fases em [`SPEC.md`](SPEC.md).
 
 ## Rodar
