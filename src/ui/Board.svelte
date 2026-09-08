@@ -16,6 +16,7 @@
   import { isPhoto } from '../lib/avatars';
   import { controllerOf, destination, piecesColorFor, playerOf, progress } from '../engine/game';
   import { peekEffects } from '../engine/powers';
+  import { DM_SAFE_MS, dmDestination, dmSafeStatus, isDeathmatch } from '../engine/deathmatch';
   import { POWER_ICON, powerBg, powerBorder } from '../lib/powers';
   import { powerIconUrl, isOgPowerIcon } from '../lib/art.svelte';
   import { players as roster } from '../stores/players.svelte';
@@ -29,6 +30,18 @@
     legal?: number[];
     /** Peça andando casa a casa (desenhada em `moving.pos`, por cima das outras). */
     moving?: Moving | null;
+    /**
+     * Deathmatch: várias peças podem andar ao mesmo tempo (uma por cor) e cada
+     * cor tem a sua lista de peças tocáveis. `dmNow` força o recálculo do anel
+     * de proteção (o pai passa Date.now() a cada tique).
+     */
+    movings?: Moving[];
+    dmLegal?: Partial<Record<Color, number[]>>;
+    dmNow?: number;
+    /** Deathmatch: posições a exibir no lugar das do motor (vítima fica na casa até o atacante pousar). */
+    dmOverrides?: Record<string, number>;
+    /** Deathmatch: toque numa peça de `color`. */
+    onDmPiece?: (color: Color, piece: number) => void;
     /** Peças voando de volta pra base (chaves `cor-índice`). */
     goingHome?: string[];
     /** UI travada (animação em andamento): nada é selecionável. */
@@ -45,6 +58,11 @@
     state: game,
     legal = [],
     moving = null,
+    movings = [],
+    dmLegal = {},
+    dmNow = 0,
+    dmOverrides = {},
+    onDmPiece,
     goingHome = [],
     busy = false,
     onPiece,
@@ -79,6 +97,15 @@
   const ringFill = $derived(og ? '#f3efe4' : '#fff');
   const gridStroke = $derived(og ? '#cfc8ba' : '#2b2f3a');
   const gridWidth = $derived(og ? 0.035 : 0.045);
+  /** Deathmatch: tempo real, sem vez; peças de todo mundo podem estar andando. */
+  const dm = $derived(isDeathmatch(game));
+  /** Todas as peças em movimento (Deathmatch = várias; outros modos = no máximo `moving`). */
+  const allMoving = $derived.by(() => {
+    const list = dm ? movings : moving ? [moving] : [];
+    const map = new Map<string, Moving>();
+    for (const m of list) map.set(`${m.color}-${m.piece}`, m);
+    return map;
+  });
   /** Cor cujas peças se movem nesta vez (no 2v2 pode ser a do parceiro). */
   const turn = $derived(piecesColorFor(game, game.turn.color));
   /** Cor de quem está jogando (base que brilha). */
@@ -124,11 +151,29 @@
 
   /** Casa de destino da(s) peça(s) legais, pra destacar. */
   const targets = $derived.by(() => {
-    if (moving || busy) return [] as { x: number; y: number }[];
-    if (game.turn.phase !== 'move' || game.turn.dice === null) return [] as { x: number; y: number }[];
+    if (dm) {
+      // um destino por cor que está escolhendo a peça
+      const out: { x: number; y: number; color: Color }[] = [];
+      for (const c of Object.keys(dmLegal) as Color[]) {
+        const legalC = dmLegal[c] ?? [];
+        const st = game.dm?.players[c];
+        if (!st || st.phase !== 'move' || st.dice === null || !legalC.length) continue;
+        const seen = new Set<string>();
+        for (const i of legalC) {
+          const cell = cellOf(c, dmDestination(game.pieces[c][i], st.dice), i);
+          const k = `${cell.x},${cell.y}`;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          out.push({ ...cell, color: c });
+        }
+      }
+      return out;
+    }
+    if (moving || busy) return [] as { x: number; y: number; color?: Color }[];
+    if (game.turn.phase !== 'move' || game.turn.dice === null) return [] as { x: number; y: number; color?: Color }[];
     const d = game.turn.dice * (game.turn.mult ?? 1);
     const seen = new Set<string>();
-    const out: { x: number; y: number }[] = [];
+    const out: { x: number; y: number; color?: Color }[] = [];
     for (const i of legal) {
       const to = destination(game.pieces[turn][i], d);
       const c = cellOf(turn, to, i);
@@ -161,8 +206,9 @@
     const groups = new Map<string, P[]>();
     for (const color of COLORS) {
       if (!present.has(color)) continue;
-      game.pieces[color].forEach((pos, index) => {
-        if (moving && moving.color === color && moving.piece === index) return; // desenhada à parte
+      game.pieces[color].forEach((pos0, index) => {
+        if (allMoving.has(`${color}-${index}`)) return; // desenhada à parte
+        const pos = dm ? (dmOverrides[`${color}-${index}`] ?? pos0) : pos0;
         const c = cellOf(color, pos, index);
         const k = pos === -1 ? `${color}-base-${index}` : `${c.x},${c.y}`;
         const p: P = { color, index, x: c.x, y: c.y, scale: pos === FINISH ? FINISH_SCALE : 1, key: `${color}-${index}` };
@@ -188,20 +234,20 @@
     // peça da vez por cima
     out.sort((a, b) => (a.color === turn ? 1 : 0) - (b.color === turn ? 1 : 0) || a.y - b.y);
     // peça em movimento sempre por último (acima de todas), na casa atual da animação
-    if (moving) {
-      const c = cellOf(moving.color, moving.pos, moving.piece);
-      const scale = moving.pos === FINISH ? FINISH_SCALE : 1;
+    for (const m of allMoving.values()) {
+      const c = cellOf(m.color, m.pos, m.piece);
+      const scale = m.pos === FINISH ? FINISH_SCALE : 1;
       out.push({
-        color: moving.color,
-        index: moving.piece,
+        color: m.color,
+        index: m.piece,
         x: c.x,
         y: c.y,
         scale,
-        key: `${moving.color}-${moving.piece}`,
-        moving: !moving.flying,
-        flying: !!moving.flying,
-        flyKind: moving.flyKind,
-        flyStep: moving.step,
+        key: `${m.color}-${m.piece}`,
+        moving: !m.flying,
+        flying: !!m.flying,
+        flyKind: m.flyKind,
+        flyStep: m.step,
       });
     }
     return out;
@@ -221,6 +267,39 @@
     }
     return out;
   });
+
+  /**
+   * Deathmatch: anel de proteção nas peças paradas em casa segura. Vai
+   * esvaziando como um relógio (fração restante de DM_SAFE_MS); zerado = a
+   * peça está vulnerável até mover (anel vazio tracejado).
+   */
+  const safeRings = $derived.by(() => {
+    if (!dm) return [] as { key: string; x: number; y: number; frac: number; color: Color }[];
+    void dmNow; // recalcula a cada tique do pai
+    const now = dmNow || Date.now();
+    const out: { key: string; x: number; y: number; frac: number; color: Color }[] = [];
+    for (const color of COLORS) {
+      if (!present.has(color)) continue;
+      game.pieces[color].forEach((pos, index) => {
+        if (allMoving.has(`${color}-${index}`)) return;
+        if (dmOverrides[`${color}-${index}`] !== undefined) return; // vítima esperando o atacante pousar
+        const st = dmSafeStatus(game, color, index, now);
+        if (!st) return;
+        const c = cellOf(color, pos, index);
+        out.push({ key: `${color}-${index}`, x: c.x, y: c.y, frac: st.remaining / DM_SAFE_MS, color });
+      });
+    }
+    return out;
+  });
+
+  /** Arco SVG de `frac` (0..1) de uma circunferência de raio r, começando no topo, sentido horário. */
+  function arc(cx: number, cy: number, r: number, frac: number): string {
+    const f = Math.min(0.9999, Math.max(0, frac));
+    const a = -Math.PI / 2 + f * 2 * Math.PI;
+    const x = cx + r * Math.cos(a);
+    const y = cy + r * Math.sin(a);
+    return `M${cx},${cy - r} A${r},${r} 0 ${f > 0.5 ? 1 : 0} 1 ${x},${y}`;
+  }
 
   function star(cx: number, cy: number, R: number): string {
     const pts: string[] = [];
@@ -324,10 +403,13 @@
       <rect x={c.col} y={c.row} width="1" height="1" fill={sc ? hex[sc] : ringFill} stroke={gridStroke} stroke-width={gridWidth} />
     {/each}
 
-    <!-- retas finais -->
+    <!-- retas finais (no Deathmatch ficam bloqueadas: ninguém chega ao centro) -->
     {#each COLORS as k}
-      {#each HOME_CELLS[k] as c}
-        <rect x={c.col} y={c.row} width="1" height="1" fill={hex[k]} stroke={gridStroke} stroke-width={gridWidth} />
+      {#each HOME_CELLS[k] as c, i}
+        <rect x={c.col} y={c.row} width="1" height="1" fill={hex[k]} stroke={gridStroke} stroke-width={gridWidth} opacity={dm ? 0.45 : 1} />
+        {#if dm && i === 0}
+          <text x={c.col + 0.5} y={c.row + 0.5} text-anchor="middle" dominant-baseline="central" font-size="0.6" opacity="0.85">🚫</text>
+        {/if}
       {/each}
     {/each}
 
@@ -388,13 +470,18 @@
     <polygon points="9,9 6,9 7.5,7.5" fill={hex.yellow} />
     <polygon points="6,9 6,6 7.5,7.5" fill={hex.green} />
     <rect x="6" y="6" width="3" height="3" fill="none" stroke={gridStroke} stroke-width={gridWidth} />
+    {#if dm}
+      <!-- Deathmatch: alvo de capturas no centro -->
+      <rect x="6.4" y="7" width="2.2" height="1" rx="0.3" fill="rgba(0,0,0,.55)" />
+      <text x="7.5" y="7.5" text-anchor="middle" dominant-baseline="central" font-size="0.48" font-weight="800" fill="#fff">Alvo ⚔ {game.dm?.target ?? 8}</text>
+    {/if}
 
     <!-- bases -->
     {#each COLORS as k}
       {@const o = BASE_ORIGIN[k]}
       {@const p = playerOf(game, k)}
       {@const active = p && p.status !== 'removed'}
-      {@const isTurn = k === actor && game.turn.phase !== 'over'}
+      {@const isTurn = !dm && k === actor && game.turn.phase !== 'over'}
       <g class="base" class:empty={!active}>
         <rect x={o.col} y={o.row} width="6" height="6" fill={hex[k]} />
         {#if og}
@@ -434,13 +521,19 @@
             >
               {name.length > 12 ? name.slice(0, 11) + '…' : name}
             </text>
-            <text x={o.col + 3} y={inner} text-anchor="middle" font-size="0.5" font-weight="800" fill="#fff" style="paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:.06">
-              {Math.round(progress(game, k) * 100)}%
-            </text>
-            {#if p.stats.captures || p.stats.deaths}
-              <text x={o.col + 5.75} y={inner} text-anchor="end" font-size="0.4" font-weight="700" fill="#fff" opacity="0.9" style="paint-order:stroke;stroke:rgba(0,0,0,.4);stroke-width:.05">
-                ⚔{p.stats.captures} ☠{p.stats.deaths}
+            {#if dm}
+              <text x={o.col + 3} y={inner} text-anchor="middle" font-size="0.6" font-weight="800" fill="#fff" style="paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:.06">
+                ⚔ {p.stats.captures} · ☠ {p.stats.deaths}
               </text>
+            {:else}
+              <text x={o.col + 3} y={inner} text-anchor="middle" font-size="0.5" font-weight="800" fill="#fff" style="paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:.06">
+                {Math.round(progress(game, k) * 100)}%
+              </text>
+              {#if p.stats.captures || p.stats.deaths}
+                <text x={o.col + 5.75} y={inner} text-anchor="end" font-size="0.4" font-weight="700" fill="#fff" opacity="0.9" style="paint-order:stroke;stroke:rgba(0,0,0,.4);stroke-width:.05">
+                  ⚔{p.stats.captures} ☠{p.stats.deaths}
+                </text>
+              {/if}
             {/if}
           {:else}
           {#if isPhoto(avatar)}
@@ -479,13 +572,19 @@
                 {avatar} {name.length > 11 ? name.slice(0, 10) + '…' : name}
               </text>
             {/if}
-            <text x={o.col + 3} y={o.row + 0.66} text-anchor="middle" font-size="0.48" font-weight="700" fill={COLOR_ON[k]} opacity="0.9">
-              {Math.round(progress(game, k) * 100)}%
-            </text>
-            {#if p.stats.captures || p.stats.deaths}
-              <text x={o.col + 5.75} y={o.row + 0.66} text-anchor="end" font-size="0.4" font-weight="700" fill={COLOR_ON[k]} opacity="0.85">
-                ⚔{p.stats.captures} ☠{p.stats.deaths}
+            {#if dm}
+              <text x={o.col + 3} y={o.row + 0.66} text-anchor="middle" font-size="0.56" font-weight="800" fill={COLOR_ON[k]} opacity="0.95">
+                ⚔ {p.stats.captures} · ☠ {p.stats.deaths}
               </text>
+            {:else}
+              <text x={o.col + 3} y={o.row + 0.66} text-anchor="middle" font-size="0.48" font-weight="700" fill={COLOR_ON[k]} opacity="0.9">
+                {Math.round(progress(game, k) * 100)}%
+              </text>
+              {#if p.stats.captures || p.stats.deaths}
+                <text x={o.col + 5.75} y={o.row + 0.66} text-anchor="end" font-size="0.4" font-weight="700" fill={COLOR_ON[k]} opacity="0.85">
+                  ⚔{p.stats.captures} ☠{p.stats.deaths}
+                </text>
+              {/if}
             {/if}
           {/if}
         {:else}
@@ -503,7 +602,7 @@
 
     <!-- destino(s) do movimento -->
     {#each targets as t}
-      <circle class="target" cx={t.x} cy={t.y} r="0.42" fill="none" stroke={COLOR_HEX[turn]} stroke-width="0.1" />
+      <circle class="target" cx={t.x} cy={t.y} r="0.42" fill="none" stroke={COLOR_HEX[t.color ?? turn]} stroke-width="0.1" />
     {/each}
 
     <!-- peças -->
@@ -514,8 +613,8 @@
         x={p.x}
         y={p.y}
         scale={p.scale}
-        selectable={!busy && !moving && p.color === turn && legal.includes(p.index)}
-        dim={!moving && game.turn.phase === 'move' && p.color === turn && !legal.includes(p.index) && isRing(game.pieces[p.color][p.index])}
+        selectable={dm ? !!dmLegal[p.color]?.includes(p.index) : !busy && !moving && p.color === turn && legal.includes(p.index)}
+        dim={dm ? false : !moving && game.turn.phase === 'move' && p.color === turn && !legal.includes(p.index) && isRing(game.pieces[p.color][p.index])}
         moving={!!p.moving}
         flying={!!p.flying}
         flyKind={p.flyKind}
@@ -525,8 +624,18 @@
         fire={fx?.fire}
         frozen={fx?.frozen}
         mult={fx?.mult}
-        onclick={() => onPiece?.(p.index)}
+        onclick={() => (dm ? onDmPiece?.(p.color, p.index) : onPiece?.(p.index))}
       />
+    {/each}
+
+    <!-- Deathmatch: anel de proteção (esvazia em 15 s) nas peças em casa segura -->
+    {#each safeRings as r (r.key)}
+      {#if r.frac > 0}
+        <circle cx={r.x} cy={r.y + 0.04} r="0.46" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="0.09" />
+        <path d={arc(r.x, r.y + 0.04, 0.46, r.frac)} fill="none" stroke={r.frac < 0.25 ? '#ff5a4f' : '#fff'} stroke-width="0.09" stroke-linecap="round" />
+      {:else}
+        <circle class="vuln" cx={r.x} cy={r.y + 0.04} r="0.46" fill="none" stroke="#ff5a4f" stroke-width="0.07" stroke-dasharray="0.12 0.1" />
+      {/if}
     {/each}
   </svg>
 
@@ -592,6 +701,9 @@
   }
   .target {
     animation: pulse 1s ease-in-out infinite;
+  }
+  .vuln {
+    animation: pulse 0.8s ease-in-out infinite;
   }
   .base.empty {
     opacity: 0.8;

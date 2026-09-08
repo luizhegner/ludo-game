@@ -84,15 +84,16 @@
 
 ### Deathmatch (tempo real)
 - **Todos jogam ao mesmo tempo**: cada jogador rola o seu dado quando quiser; sem turnos, sem espera além da própria animação (rolar + mover).
-- **Cada jogador tem o seu dado 3D**, na cor dele, que **rola pelo tabuleiro inteiro** e pode trombar nos outros dados.
+- **Cada jogador tem o seu dado 3D**, na cor dele, **fixo na própria base** (os de cima, verde e vermelho, ficam virados pra quem senta do outro lado da mesa). Na fase 7 o dado passa a **rolar pelo tabuleiro inteiro** e trombar nos outros dados.
 - **6** tira peça da base **ou** anda 6 casas normalmente; a diferença é que **não dá jogada extra** e não existe regra dos três 6.
 - Peças começam **na base**. Peça comida **volta pra base** e precisa de 6 pra sair.
-- **Reta final bloqueada** (🚫 na 1ª casa): ninguém chega ao centro; as peças ficam circulando pelo anel. O centro mostra **"Alvo ⚔ 8"** e o placar.
-- **Casas seguras com prazo (anti-camping):** saída e estrelas protegem por **no máximo 15 s** seguidos; depois a peça fica **vulnerável até mover** (anel de proteção ao redor da peça vai esvaziando como um relógio). **Exceção:** o **canhão** de cada base **abate na hora** qualquer adversário que parar na **estrela da sua cor** (animação: canhão gira, atira, estouro na estrela; a peça volta pra base e conta como captura do dono do canhão).
-- **Conflitos:** o motor resolve cada jogada **no instante em que o dado para** (fila por ordem de parada); a animação é só apresentação. Captura é avaliada **no pouso**: se a peça-alvo ainda está em movimento, ninguém come ninguém e as duas coexistem na casa até alguém mover. Isso evita "comer o vento".
+- **Reta final bloqueada** (🚫 na 1ª casa): ninguém chega ao centro; as peças ficam circulando pelo anel (dão a volta pela casa de saída). O centro mostra **"Alvo ⚔ 8"**; cada base mostra **⚔ capturas · ☠ mortes** no lugar do %.
+- **Casas seguras com prazo (anti-camping):** saída e estrelas protegem por **no máximo 15 s** seguidos; depois a peça fica **vulnerável até mover** (anel de proteção ao redor da peça vai esvaziando como um relógio; vermelho nos últimos 25 %, tracejado quando vulnerável). Os 15 s contam em **tempo de jogo** (não andam com o menu aberto). Peça que já estava parada quando o adversário chega ainda protegida **não é comida** — o atacante para junto e as duas coexistem até alguém mover. **Exceção:** o **canhão** de cada base **abate na hora** qualquer adversário que parar na **estrela da sua cor** (a peça fica um instante na estrela, o canhão dispara, ela volta pra base e conta como captura do dono do canhão — pode inclusive dar a 8ª captura). A estrela de uma cor **ausente** (ou removida) é casa segura normal; a própria estrela também.
+- **Conflitos:** o motor resolve cada jogada **no instante em que o dado para** (fila por ordem de parada); a animação é só apresentação. Captura é avaliada **no pouso**: se a peça-alvo ainda está em movimento, ninguém come ninguém e as duas coexistem na casa até alguém mover. Isso evita "comer o vento". Na tela, a vítima só some quando a peça atacante chega visualmente à casa. Se a peça que o jogador estava prestes a mover for comida no meio do caminho, a escolha dele é recalculada (sem opção → volta a rolar).
 - **Entrada:** toque simples no dado (rola pra cima e cai) — recomendado no Deathmatch pra tirar a mão da tela rápido; arrasto continua disponível.
-- Sem casas de poder. Sem % de progresso.
-- Colocação final: **capturas** (desc.), desempate por **menos mortes** [padrão: depois progresso].
+- Sem casas de poder. Sem % de progresso. **"Jogada extra ao comer" não existe** aqui (a opção some da Nova partida).
+- **Tempo:** cronômetro de 5:00 começa no **primeiro lançamento de qualquer jogador** e pausa enquanto o menu está aberto (como no 5 Minutos). Quando zera, a UI recusa novos lançamentos e espera as peças em movimento pousarem pra fechar.
+- Colocação final: **capturas** (desc.), desempate por **menos mortes**, depois ordem de cor [padrão]. Jogador removido fica em último. Pausar/remover até sobrar um ativo encerra a partida. ⋮ → Encerrar → **"Encerrar e ranquear por capturas"**.
 
 ---
 
@@ -238,7 +239,7 @@ Three.js/cannon-es são **camada de apresentação** do dado: entregam um númer
 | **1. Núcleo** | Motor de regras + tabuleiro + peças + dado simples. Partida completa no Clássico, com testes do motor | ✅ |
 | **2. Interface** | Abas, Jogar, Nova partida (3 passos), Jogadores (cadastro/avatar), Ajustes básicos | ✅ |
 | **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba | ✅ |
-| **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) | Rápido, 5 Minutos, 2v2 e 2v2 Poderes jogam; falta o Deathmatch |
+| **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) | ✅ (Deathmatch com dado por jogador fixo na base; o dado rolando pelo tabuleiro fica pra fase 7) |
 | **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON | adiantada na fase 2 (ver abaixo) |
 | **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | página Ranking já existe (por vitórias); falta o Elo |
 | **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio | |
@@ -287,6 +288,22 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
   e a coluna ✨ (poderes pegos).
 - **[padrão]** Quando um poder leva a peça pra casa de outro poder, a peça pausa um instante na primeira casa antes de continuar,
   pra dar pra acompanhar. Peça com fogo que passa por cima de mina escondida a detona sem vítima (como na seção 5).
+
+### O que a fase 4 entregou (Deathmatch)
+
+- **Motor** (`src/engine/deathmatch.ts`, puro, 19 testes): sem turno global — cada cor tem seu próprio ciclo `roll → move` em
+  `state.dm.players[cor]`; `dmRoll`/`dmMove` aplicam a jogada no instante do toque, na ordem em que chegam. O anel dá a volta
+  (posição 0–51, sem reta final); captura no pouso; casa segura guarda um carimbo de **tempo de jogo** (`safeSince`) e protege
+  por 15 s; canhão = parar na estrela de outra cor presente; vitória imediata aos 8; `timeUp` ranqueia por capturas → menos
+  mortes → ordem de cor; `endGame(true)` idem, `endGame(false)` abandona. Peças que o jogador ia mover e foram comidas no
+  meio-tempo são revalidadas (`legal` recalculado; sem opção, volta a rolar).
+- **Interface**: um dado por jogador na própria base (os do topo virados 180°), habilitado só quando é hora daquele jogador
+  rolar; peças de todas as cores podem estar andando ao mesmo tempo (`movings`); a vítima continua desenhada na casa até a
+  atacante chegar; peça abatida pelo canhão fica um instante na estrela antes de voltar; anel de proteção esvaziando ao redor
+  das peças em casa segura; centro "Alvo ⚔ 8"; bases com ⚔/☠; cabeçalho com quem lidera; reta final apagada com 🚫.
+- **Decisões [padrão]** que o usuário pode mudar: 15 s em tempo de jogo (não em tempo de parede); canhão só na estrela de
+  cores presentes; sem jogada extra no 6 nem ao comer; peça protegida bloqueia a captura mas não o pouso (coexistência);
+  desempate por menos mortes e depois ordem de cor (Elo vem na fase 6).
 
 ## 13. Fora de escopo (por enquanto)
 

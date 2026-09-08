@@ -1,8 +1,10 @@
 <script lang="ts">
   import { match } from '../stores/match.svelte';
+  import { dmStore } from '../stores/dm.svelte';
   import { sound } from '../lib/sound';
   import { COLOR_HEX, COLOR_ON } from '../lib/colors';
   import { BASE_ORIGIN } from '../engine/board';
+  import { COLORS, type Color } from '../engine/types';
   import { controllerOf, currentPlayer, legalPicks, piecesColorFor } from '../engine/game';
   import { fmtClock } from '../lib/format';
   import { POWER_ICON, powerBg, powerBorder, powerBlurb, powerName } from '../lib/powers';
@@ -34,6 +36,39 @@
   /** Cronômetro: pisca nos últimos 30 s. */
   const urgent = $derived(match.timed && match.remainingMs <= 30_000 && match.remainingMs > 0);
 
+  // ---- Deathmatch: tempo real, um dado por jogador na própria base ----
+  const dm = $derived(match.deathmatch);
+  /** Cores presentes (ativas ou pausadas) — cada uma ganha um dado. */
+  const dmColors = $derived(dm ? game.players.filter((p) => p.status !== 'removed').map((p) => p.color) : []);
+  const dmLegal = $derived.by(() => {
+    if (!dm) return {} as Partial<Record<Color, number[]>>;
+    void dmStore.anim; // reage às animações
+    const out: Partial<Record<Color, number[]>> = {};
+    for (const c of dmColors) out[c] = dmStore.legal(c, game);
+    return out;
+  });
+  /** Relógio de parede pro anel de proteção (atualiza 4×/s enquanto a partida corre). */
+  let dmNow = $state(0);
+  $effect(() => {
+    if (!dm || game.turn.phase === 'over') return;
+    dmNow = Date.now();
+    const id = setInterval(() => (dmNow = Date.now()), 250);
+    return () => clearInterval(id);
+  });
+  /** Líder atual (pro cabeçalho). */
+  const dmLead = $derived.by(() => {
+    if (!dm) return null;
+    const list = game.players.filter((p) => p.status !== 'removed');
+    const best = [...list].sort((a, b) => b.stats.captures - a.stats.captures || a.stats.deaths - b.stats.deaths)[0];
+    return best ?? null;
+  });
+  const dmDicePos = (c: Color) => {
+    const o = BASE_ORIGIN[c];
+    return { x: o.col + 3, y: o.row + 3 };
+  };
+  /** Dado do Deathmatch: girando de cabeça pra baixo pra quem senta do outro lado (vermelho/verde = topo). */
+  const dmFlip = (c: Color) => c === 'green' || c === 'red';
+
   // menu aberto pausa o relógio (ações explícitas, sem efeito reativo)
   function openMenu() {
     sound.play('tap');
@@ -59,9 +94,21 @@
   });
 </script>
 
-<div class="screen" class:og>
+<div class="screen" class:og class:dm>
   <header>
-    {#if og && me}
+    {#if dm}
+      <!-- Deathmatch: placar em vez de "vez de" -->
+      <div class="dm-head">
+        <span class="dm-title">⚔ Deathmatch</span>
+        <span class="dm-sub muted">
+          {#if dmLead && dmLead.stats.captures > 0}
+            {players.nameOf(dmLead.playerId, dmLead.name)} lidera · {dmLead.stats.captures}/{game.dm?.target ?? 8}
+          {:else}
+            primeiro a {game.dm?.target ?? 8} capturas
+          {/if}
+        </span>
+      </div>
+    {:else if og && me}
       <!-- OG: avatar num quadrado com a borda na cor da vez, ✕ capturas / ☠ mortes, e a mãozinha quando é hora de rolar -->
       <div class="who-og" style="--c:{COLOR_HEX[turn]}">
         {#if canRoll}<span class="point" aria-hidden="true">👉</span>{/if}
@@ -102,6 +149,11 @@
       state={game}
       {legal}
       moving={match.moving}
+      movings={dm ? dmStore.movings : []}
+      {dmLegal}
+      {dmNow}
+      dmOverrides={dm ? dmStore.overrides : {}}
+      onDmPiece={(c, i) => { sound.play('tap'); dmStore.move(c, i); }}
       goingHome={match.goingHome}
       busy={match.busy}
       onPiece={(i) => { sound.play('tap'); match.move(i); }}
@@ -109,7 +161,21 @@
       onPowerRelease={() => match.hideInfo()}
     >
       {#snippet overlay(cell)}
-        {#if game.turn.phase !== 'over'}
+        {#if dm}
+          {#if game.turn.phase !== 'over'}
+            {#each dmColors as c (c)}
+              {@const a = dmStore.anim[c]}
+              {@const pos = dmDicePos(c)}
+              <div
+                class="dice-pos dm-dice"
+                class:flip={dmFlip(c)}
+                style="left:{pos.x * cell}px; top:{pos.y * cell}px; --size:{Math.max(44, cell * 1.9)}px"
+              >
+                <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(44, cell * 1.9)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
+              </div>
+            {/each}
+          {/if}
+        {:else if game.turn.phase !== 'over'}
           <div
             class="dice-pos"
             style="left:{dicePos.x * cell}px; top:{dicePos.y * cell}px; --size:{Math.max(44, cell * 1.9)}px"
@@ -132,7 +198,7 @@
     </Board>
   </div>
 
-  <div class="status" style="--c:{COLOR_HEX[turn]}">
+  <div class="status" style="--c:{dm ? 'var(--ink)' : COLOR_HEX[turn]}">
     {#if match.info}
       {@const p = match.info.power}
       <div class="pinfo" style="--bg:{powerBg(p)}; --bd:{powerBorder(p)}">
@@ -316,6 +382,31 @@
     height: var(--size);
     /* desliza até a base do próximo jogador */
     transition: left 0.45s cubic-bezier(0.3, 0.8, 0.3, 1), top 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
+  }
+  /* Deathmatch: um dado fixo por base; os de cima viram pra quem senta do outro lado da mesa */
+  .dm-dice {
+    transition: none;
+  }
+  .dm-dice.flip {
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+  .dm-head {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.15;
+  }
+  .dm-title {
+    font-weight: 800;
+    font-size: 17px;
+  }
+  .dm-sub {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 56vw;
   }
   .status {
     flex: 1;

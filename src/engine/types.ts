@@ -89,6 +89,28 @@ export interface PowersState {
   pending: Partial<Record<Color, PendingMultiplier>>;
 }
 
+/**
+ * Deathmatch (tempo real): cada jogador tem o seu próprio "turno" permanente —
+ * rola quando quiser, move a peça e rola de novo. Não existe `turn` global.
+ */
+export interface DmPlayer {
+  phase: 'roll' | 'move';
+  dice: number | null;
+  legal: number[];
+}
+
+export interface DeathmatchState {
+  /** Capturas pra vencer. */
+  target: number;
+  players: Partial<Record<Color, DmPlayer>>;
+  /**
+   * Por cor → por peça: instante (em ms de TEMPO DE JOGO, `elapsedMs`) em que a
+   * peça parou na casa segura atual. Protege por `DM_SAFE_MS`; depois a peça
+   * fica vulnerável até mover. null/ausente = não está protegida.
+   */
+  safeSince: Partial<Record<Color, (number | null)[]>>;
+}
+
 export type PlayerStatus = 'active' | 'paused' | 'removed';
 
 export interface PlayerStats {
@@ -177,6 +199,8 @@ export interface GameState {
   substituted?: SubstitutedPlayer[];
   /** Casas de poder e efeitos (só nos modos com poderes). */
   powers?: PowersState;
+  /** Estado do Deathmatch (só nesse modo). Posições das peças: -1 base, 0..51 anel (dão a volta, sem reta final). */
+  dm?: DeathmatchState;
   /** Estado do gerador de números aleatórios (serializável). */
   rng: number;
   log: GameEvent[];
@@ -227,6 +251,9 @@ export type GameEvent =
   | { t: number; type: 'mineRevealed'; ring: number; by: Color }
   | { t: number; type: 'mineDetonated'; ring: number; by: Color }
   /** Novas casas de poder colocadas (índices absolutos; minas escondidas não aparecem aqui). */
-  | { t: number; type: 'repopulate'; rings: number[] };
+  | { t: number; type: 'repopulate'; rings: number[] }
+  // --- deathmatch ---
+  /** Canhão da base de `by` abateu a peça de `victim` que parou na estrela dele. */
+  | { t: number; type: 'cannon'; by: Color; victim: Color; piece: number; ring: number };
 
 export type EventType = GameEvent['type'];

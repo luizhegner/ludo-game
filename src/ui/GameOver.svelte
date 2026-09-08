@@ -20,6 +20,17 @@
 
   const rolls = $derived(game.log.filter((e) => e.type === 'roll').length);
 
+  /** Título: no Deathmatch, quem bateu a meta de capturas é o destaque. */
+  const title = $derived.by(() => {
+    if (game.endReason === 'abandoned') return 'Partida encerrada';
+    if (game.endReason === 'time') return '⏱ Acabou o tempo!';
+    if (game.rules.mode === 'deathmatch' && game.endReason === 'finished' && game.placements?.length) {
+      const w = playerOf(game, game.placements[0]);
+      if (w && w.stats.captures >= (game.dm?.target ?? 8)) return `⚔ ${players.nameOf(w.playerId, w.name)} chegou a ${w.stats.captures} capturas!`;
+    }
+    return 'Fim de jogo';
+  });
+
   function rematch() {
     sound.play('tap');
     const list = game.players
@@ -34,7 +45,7 @@
 
 <div class="backdrop">
   <div class="card panel">
-    <h1>{game.endReason === 'abandoned' ? 'Partida encerrada' : game.endReason === 'time' ? '⏱ Acabou o tempo!' : 'Fim de jogo'}</h1>
+    <h1>{title}</h1>
     {#if game.placements}
       <ol class="podium">
         {#each rows as r (r.color)}

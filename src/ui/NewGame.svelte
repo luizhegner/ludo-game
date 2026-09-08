@@ -180,9 +180,11 @@
       </div>
     </div>
 
-    <div class="card rules">
-      <Toggle label="Jogada extra ao comer" hint="Quem come uma peça rola o dado de novo" bind:checked={captureBonus} />
-    </div>
+    {#if mode !== 'deathmatch'}
+      <div class="card rules">
+        <Toggle label="Jogada extra ao comer" hint="Quem come uma peça rola o dado de novo" bind:checked={captureBonus} />
+      </div>
+    {/if}
 
     {#if info.powers}
       <div class="card powers">
@@ -217,6 +219,14 @@
     {/if}
 
     <ul class="fixed muted">
+      {#if mode === 'deathmatch'}
+        <li><b>Todo mundo joga ao mesmo tempo</b>: cada jogador tem o seu dado, na própria base, e rola quando quiser</li>
+        <li>Sai da base com 6 (ou anda 6) · <b>sem jogada extra</b>, sem regra dos três 6 · as peças dão voltas no anel: <b>ninguém entra na reta final</b></li>
+        <li>Comer manda o adversário pra base · <b>vence quem chegar a 8 capturas</b>; aos 5:00, quem tiver mais (empate: menos mortes)</li>
+        <li>Casa segura protege por <b>15 s</b> (o anel ao redor da peça vai esvaziando); depois a peça fica vulnerável até mover</li>
+        <li><b>Canhão:</b> parar na <b>estrela de outra cor</b> presente = abatida na hora (conta captura pro dono)</li>
+        <li>Toque simples no dado · o relógio (5:00) começa no primeiro lançamento e pausa com o menu aberto</li>
+      {:else}
       {#if mode === 'fiveMin'}
         <li><b>Todas as peças começam fora</b>, empilhadas na saída · qualquer número move · 6 joga de novo · três 6 seguidos: última peça movida volta pra base e perde a vez</li>
       {:else}
@@ -224,7 +234,10 @@
       {/if}
       <li>Casas seguras: saída de cada cor e as 4 estrelas</li>
       <li>Centro só com número exato · quem coloca uma peça no centro joga de novo</li>
-      {#if mode === 'quick'}
+      {/if}
+      {#if mode === 'deathmatch'}
+        <!-- regras já listadas acima -->
+      {:else if mode === 'quick'}
         <li>Vence quem colocar o <b>primeiro peão</b> no centro</li>
       {:else if mode === 'fiveMin'}
         <li><b>Cronômetro de 5:00</b> (começa no primeiro lançamento; pausa com o menu aberto). Acabou o tempo: colocação por <b>peças no centro</b>, desempate por progresso</li>

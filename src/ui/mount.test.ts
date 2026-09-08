@@ -7,6 +7,8 @@ import { players } from '../stores/players.svelte';
 import { history } from '../stores/history.svelte';
 import { nav } from '../stores/nav.svelte';
 import { settings } from '../stores/settings.svelte';
+import { dmStore } from '../stores/dm.svelte';
+import { STAR_ABS, START_OFFSET } from '../engine/board';
 import { powerName } from '../lib/powers';
 
 function text() {
@@ -570,6 +572,95 @@ describe('fase 4 pela UI: 5 Minutos e 2v2', () => {
     expect(document.querySelector('.who-og')).toBeNull();
     expect(document.querySelector('.who')).not.toBeNull();
     expect(document.querySelector('.board.og')).toBeNull();
+    unmount(app);
+  });
+  it('Deathmatch: um dado por jogador, ações simultâneas, captura no pouso, canhão, anel de proteção e fim por tempo', () => {
+    const app = mount(App, { target: document.getElementById('app')! });
+    flushSync();
+    clickText('Nova partida');
+    clickText('Deathmatch', '.mode');
+    setupPlayers(2);
+    clickText('Continuar com 2 jogadores');
+    expect(text()).toContain('Todo mundo joga ao mesmo tempo');
+    expect(text()).not.toContain('Jogada extra ao comer');
+    clickText('Iniciar partida');
+    const s0 = match.state!;
+    expect(s0.rules.mode).toBe('deathmatch');
+    expect(s0.dm).toBeTruthy();
+
+    // dois dados na tela (um por jogador), os dois habilitados; sem "vez de"
+    expect(document.querySelectorAll('.dm-dice .dice').length).toBe(2);
+    expect(document.querySelectorAll('.dice:not([disabled])').length).toBe(2);
+    expect(document.querySelector('.who')).toBeNull();
+    expect(text()).toContain('Deathmatch');
+    expect(document.querySelector('.board svg')!.textContent).toContain('Alvo ⚔ 8');
+
+    // os dois rolam "ao mesmo tempo": verde tira 6 (sai), vermelho tira 3 (sem jogada)
+    dmStore.roll('green', 6);
+    dmStore.roll('red', 3);
+    expect(dmStore.anim.green.rolling).toBe(true);
+    expect(dmStore.anim.red.rolling).toBe(true);
+    expect(match.state!.clock!.runningSince).not.toBeNull(); // relógio ligou no primeiro lançamento
+    tick(TIMING.dice + 10);
+    expect(dmStore.anim.red.holding).toBe(true); // "sem jogada" segurando o número
+    // verde: auto-move (todas na base) → salto pra saída
+    tick(TIMING.autoMove + TIMING.out + 100);
+    expect(match.state!.pieces.green[0]).toBe(0);
+    expect(dmStore.canRoll('green')).toBe(true); // 6 não dá jogada extra, mas o ciclo é sempre rolar de novo
+    tick(TIMING.hold);
+    expect(dmStore.canRoll('red')).toBe(true);
+
+    // arma uma captura: vermelho parado na casa abs 5 (rel 44 do vermelho); verde em 2 anda 3
+    const st = structuredClone(match.state!);
+    st.pieces.green = [2, -1, -1, -1];
+    st.pieces.red = [(5 - START_OFFSET.red + 52) % 52, -1, -1, -1];
+    localStorage.setItem('ludo.match.v1', JSON.stringify(st));
+    match.applyDm(st, match.state!);
+    dmStore.roll('green', 3);
+    tick(TIMING.dice + TIMING.autoMove + 10);
+    // enquanto a peça verde anda, a vermelha continua desenhada na casa (vítima só some no pouso)
+    expect(match.state!.pieces.red[0]).toBe(-1); // motor já decidiu
+    expect(dmStore.overrides['red-0']).toBe((5 - START_OFFSET.red + 52) % 52); // UI segura
+    expect(document.querySelectorAll('.pawn').length).toBe(8);
+    tick(TIMING.step * 3 + 100);
+    expect(dmStore.overrides['red-0']).toBeUndefined();
+    expect(match.state!.players.find((p) => p.color === 'green')!.stats.captures).toBe(1);
+    expect(text()).toContain('comeu');
+    expect(document.querySelector('.board svg')!.textContent).toContain('⚔ 1');
+
+    // anel de proteção: verde para na saída do vermelho (abs 13, segura sem canhão) → anel cheio
+    const st2 = structuredClone(match.state!);
+    st2.pieces.green = [12, -1, -1, -1];
+    localStorage.setItem('ludo.match.v1', JSON.stringify(st2));
+    match.applyDm(st2, match.state!);
+    dmStore.roll('green', 1);
+    tick(TIMING.dice + TIMING.autoMove + TIMING.step + 100);
+    expect(match.state!.pieces.green[0]).toBe(13);
+    expect(document.querySelector('.board svg path[stroke="#fff"][stroke-linecap="round"]')).toBeTruthy();
+    // 15 s depois: vulnerável (anel tracejado)
+    tick(15_500);
+    expect(document.querySelector('.board svg .vuln')).toBeTruthy();
+
+    // canhão: verde para na estrela do vermelho (abs 21) → abatida, captura pro vermelho
+    const st3 = structuredClone(match.state!);
+    st3.pieces.green = [STAR_ABS.red - 2, -1, -1, -1];
+    localStorage.setItem('ludo.match.v1', JSON.stringify(st3));
+    match.applyDm(st3, match.state!);
+    dmStore.roll('green', 2);
+    tick(TIMING.dice + TIMING.autoMove + TIMING.step * 2 + 100);
+    expect(dmStore.overrides['green-0']).toBe(STAR_ABS.red); // fica um instante na estrela
+    tick(TIMING.power + 50);
+    expect(match.state!.pieces.green[0]).toBe(-1);
+    expect(match.state!.players.find((p) => p.color === 'red')!.stats.captures).toBe(1);
+    expect(text()).toContain('Canhão');
+
+    // acaba o tempo → ranking por capturas (1 × 1, desempate por menos mortes: vermelho morreu 1, verde 1 → ordem de cor)
+    for (let i = 0; i < 31 && match.state!.turn.phase !== 'over'; i++) tick(10_000);
+    expect(match.state!.turn.phase).toBe('over');
+    expect(match.state!.endReason).toBe('time');
+    expect(document.querySelector('.podium')).toBeTruthy();
+    expect(document.querySelectorAll('.dm-dice').length).toBe(0);
+    expect(history.list.length).toBe(1);
     unmount(app);
   });
 });

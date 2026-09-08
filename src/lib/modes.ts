@@ -86,13 +86,13 @@ export const MODES: readonly ModeInfo[] = [
   {
     id: 'deathmatch',
     name: 'Deathmatch',
-    blurb: 'Tempo real, sem turnos: vence quem chegar a 8 capturas.',
+    blurb: 'Tempo real, sem turnos: cada um com o seu dado. Vence quem chegar a 8 capturas (ou quem tiver mais aos 5:00).',
     minPlayers: 2,
     maxPlayers: 4,
     teams: false,
     powers: false,
     timed: true,
-    available: false,
+    available: true,
   },
 ];
 

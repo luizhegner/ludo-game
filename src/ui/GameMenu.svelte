@@ -89,7 +89,7 @@
             <div class="pinfo">
               <div class="pname">{present ? roster.nameOf(p.playerId, p.name) : COLOR_NAME[c]}</div>
               <div class="psub muted">
-                {#if !present}livre{:else if p.status === 'paused'}pausado{:else if done}terminou{:else}jogando{/if}
+                {#if !present}livre{:else if p.status === 'paused'}pausado{:else if done}terminou{:else if game.rules.mode === 'deathmatch'}⚔ {p.stats.captures} · ☠ {p.stats.deaths}{:else}jogando{/if}
               </div>
             </div>
             <div class="actions">
@@ -114,6 +114,15 @@
     {:else if view === 'rules'}
       <div class="rules">
         <div><b>Modo:</b> {modeName(game.rules.mode)}</div>
+        {#if game.rules.mode === 'deathmatch'}
+          <div><b>Tempo real:</b> cada jogador tem o seu dado e rola quando quiser · sem turnos</div>
+          <div><b>6:</b> tira da base ou anda 6 · sem jogada extra · sem regra dos três 6</div>
+          <div><b>Anel:</b> as peças dão voltas · ninguém entra na reta final</div>
+          <div><b>Comer:</b> cair em adversário manda ele pra base · <b>vence quem chegar a {game.dm?.target ?? 8} capturas</b></div>
+          <div><b>Casa segura:</b> protege por 15 s parado; depois a peça fica vulnerável até mover</div>
+          <div><b>Canhão:</b> parar na estrela de outra cor presente = abatida na hora (captura pro dono)</div>
+          <div><b>Tempo:</b> 5:00 · começa no primeiro lançamento · pausa enquanto este menu está aberto · no fim, quem tiver mais capturas (empate: menos mortes)</div>
+        {:else}
         {#if game.rules.mode === 'fiveMin'}
           <div><b>Começo:</b> todas as peças já fora, na saída · qualquer número move</div>
           <div><b>Tempo:</b> 5:00 · começa no primeiro lançamento · pausa enquanto este menu está aberto</div>
@@ -133,6 +142,7 @@
           <div><b>Parceiro:</b> quem termina as 4 joga com as peças do parceiro · cair na casa dele come normalmente (azar){powersOn ? ' · fogo não queima o parceiro · mega bomba pega todo mundo' : ''}</div>
         {:else}
           <div><b>Fim:</b> a partida continua até sobrar um</div>
+        {/if}
         {/if}
         {#if powersOn}
           <div class="ptitle"><b>Casas de poder</b></div>
@@ -157,7 +167,7 @@
     {:else}
       <div class="list">
         <p class="muted">Como encerrar?</p>
-        <button class="btn block" onclick={() => { match.endGame(true); onClose(); }}>Encerrar e ranquear por progresso</button>
+        <button class="btn block" onclick={() => { match.endGame(true); onClose(); }}>{game.rules.mode === 'deathmatch' ? 'Encerrar e ranquear por capturas' : 'Encerrar e ranquear por progresso'}</button>
         <button class="btn block ghost" onclick={() => { match.endGame(false); onClose(); }}>Encerrar sem contar</button>
       </div>
     {/if}

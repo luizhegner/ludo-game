@@ -20,6 +20,7 @@ import {
 } from './types';
 import { SAFE_ABS, isRing, progressOf, toAbsolute } from './board';
 import { nextInt, randomSeed } from './rng';
+import { DM_TARGET, dmAfterAvailabilityChange, dmEndGame, dmPlacements, dmTimeUp, isDeathmatch } from './deathmatch';
 import {
   DEFAULT_DURATION_MS,
   MEGA_BOMB_RADIUS,
@@ -127,6 +128,12 @@ export function createGame(cfg: NewGameConfig): GameState {
     // o cronômetro só começa no primeiro lançamento (startClock)
     state.clock = { elapsedMs: 0, runningSince: null };
   }
+  if (state.rules.mode === 'deathmatch') {
+    // tempo real: todo mundo começa com o próprio dado pronto; `turn` não é usado
+    state.rules.captureBonus = false;
+    state.dm = { target: DM_TARGET, players: {}, safeSince: {} };
+    for (const p of players) state.dm.players[p.color] = { phase: 'roll', dice: null, legal: [] };
+  }
   return state;
 }
 
@@ -174,6 +181,7 @@ export function pauseClock(state: GameState, now = Date.now()): GameState {
  */
 export function timeUp(state: GameState, now = Date.now()): GameState {
   if (!isTimeUp(state, now)) return state;
+  if (isDeathmatch(state)) return dmTimeUp(state, now);
   const s = clone(state);
   s.updatedAt = now;
   s.clock = { elapsedMs: s.rules.durationMs ?? DEFAULT_DURATION_MS, runningSince: null };
@@ -315,6 +323,7 @@ export function isOver(state: GameState): boolean {
  * `forced` permite injetar o valor (dado físico em modo "física real", testes).
  */
 export function roll(state: GameState, forced?: number, now = Date.now()): GameState {
+  if (isDeathmatch(state)) throw new Error('Deathmatch: use dmRoll(cor)');
   if (state.turn.phase !== 'roll') throw new Error('não é hora de rolar');
   if (isTimeUp(state, now)) throw new Error('tempo esgotado');
   const color = state.turn.color;
@@ -386,6 +395,7 @@ export function roll(state: GameState, forced?: number, now = Date.now()): GameS
 
 /** Move a peça `piece` do jogador da vez com o dado já rolado. */
 export function move(state: GameState, piece: number, now = Date.now()): GameState {
+  if (isDeathmatch(state)) throw new Error('Deathmatch: use dmMove(cor, peça)');
   if (state.turn.phase !== 'move' || state.turn.dice === null) throw new Error('não é hora de mover');
   if (!state.turn.legal.includes(piece)) throw new Error('movimento ilegal');
 
@@ -458,6 +468,7 @@ function endOfMove(s: GameState, color: Color, out: Outcome, extra: boolean, now
 /** Encerra manualmente. `rank` = ranquear por progresso (mexe no Elo) ou só abandonar. */
 export function endGame(state: GameState, rank: boolean, now = Date.now()): GameState {
   if (isOver(state)) return state;
+  if (isDeathmatch(state)) return dmEndGame(state, rank, now);
   const s = clone(state);
   s.updatedAt = now;
   return finishGame(s, rank ? 'ranked' : 'abandoned', now);
@@ -483,6 +494,7 @@ export function addPlayer(state: GameState, p: NewPlayer, now = Date.now()): Gam
   });
   s.players.sort((a, b) => COLORS.indexOf(a.color) - COLORS.indexOf(b.color));
   s.pieces[p.color] = [BASE, BASE, BASE, BASE];
+  if (isDeathmatch(s)) return dmAfterAvailabilityChange(s, now);
   return s;
 }
 
@@ -520,6 +532,7 @@ export function resumePlayer(state: GameState, color: Color, now = Date.now()): 
   if (!p || p.status !== 'paused') throw new Error('jogador não está pausado');
   s.updatedAt = now;
   p.status = 'active';
+  if (isDeathmatch(s)) return dmAfterAvailabilityChange(s, now);
   return s;
 }
 
@@ -548,6 +561,7 @@ export function substitutePlayer(
 /** Se o jogador da vez deixou de estar disponível, a vez passa; se sobrou um, acaba. */
 function afterAvailabilityChange(s: GameState, color: Color, now: number): GameState {
   if (isOver(s)) return s;
+  if (isDeathmatch(s)) return dmAfterAvailabilityChange(s, now);
   if (shouldEnd(s)) return finishGame(s, 'finished', now);
   if (s.turn.color === color && !isPlayable(s, color)) return advanceTurn(s, now);
   return s;
@@ -947,6 +961,7 @@ function finishGame(s: GameState, reason: EndReason, now: number): GameState {
  */
 export function computePlacements(s: GameState): Color[] {
   // quem terminou (na ordem), depois quem está em jogo por peças no centro + progresso, depois quem saiu
+  if (isDeathmatch(s)) return dmPlacements(s);
   if (hasTeams(s.rules)) return teamPlacements(s);
   const done = [...s.finished];
   const racing = s.players

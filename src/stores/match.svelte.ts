@@ -10,6 +10,7 @@
  * animação não perde nada), mas `state` só avança quando a animação termina.
  */
 import * as engine from '../engine/game';
+import { isDeathmatch } from '../engine/deathmatch';
 import { toAbsolute } from '../engine/board';
 import { BASE, type Color, type GameState, type Power } from '../engine/types';
 import { settings, haptic, type Haptic } from './settings.svelte';
@@ -204,7 +205,66 @@ class MatchStore {
 
   /** UI travada: dado e peças não respondem. */
   get busy(): boolean {
-    return this.rolling || this.moving !== null || this.holding || this.autoPending;
+    return this.rolling || this.moving !== null || this.holding || this.autoPending || this.dmPending > 0;
+  }
+
+  /** Deathmatch: tempo real. */
+  get deathmatch(): boolean {
+    return !!this.state && isDeathmatch(this.state);
+  }
+
+  /** Cronômetro zerou (a UI recusa novas ações e deixa o tique fechar a partida). */
+  timeIsUp(): boolean {
+    if (!this.state) return false;
+    if (engine.isTimeUp(this.state)) {
+      this.tick();
+      return true;
+    }
+    return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Deathmatch (a store `dm` cuida da animação por cor; aqui só o estado)
+  // -------------------------------------------------------------------------
+
+  /** Movimentos do Deathmatch ainda em animação (segura o fechamento por tempo). */
+  private dmPending = 0;
+  /** Estado mais recente do motor (pode estar à frente do `state` exibido, durante animações). */
+  private dmLatest: GameState | null = null;
+
+  /**
+   * Aplica uma ação do Deathmatch. Persiste na hora. Com `deferVisual`, o
+   * `state` exibido NÃO avança (a peça está andando); `revealDm` faz isso no
+   * pouso. Como várias ações podem se sobrepor, o "exibido" é reconstruído a
+   * partir do estado real do motor a cada revelação.
+   */
+  applyDm(after: GameState, before: GameState, deferVisual = false): void {
+    this.dmLatest = after;
+    persist(after);
+    if (deferVisual) {
+      this.dmPending++;
+      // enquanto a peça anda, os OUTROS jogadores precisam ver o estado novo dos ciclos (dado deles);
+      // mostramos o estado novo, mas com a peça que está andando ainda na origem (o tabuleiro a desenha à parte)
+      this.state = after;
+      this.refreshStatus();
+      this.tick();
+      return;
+    }
+    this.state = after;
+    this.emitToasts(before, after);
+    this.refreshStatus();
+    this.tick();
+  }
+
+  /** Pouso da peça no Deathmatch: toasts/sons dos eventos daquela jogada, e libera o fechamento por tempo. */
+  revealDm(after: GameState, before: GameState): void {
+    this.dmPending = Math.max(0, this.dmPending - 1);
+    this.emitToasts(before, after);
+    this.animateHome(before, after);
+    // o estado exibido é sempre o mais recente do motor
+    if (this.dmLatest && this.dmLatest !== this.state) this.state = this.dmLatest;
+    this.refreshStatus();
+    this.tick();
   }
 
   start(cfg: engine.NewGameConfig): void {
@@ -239,6 +299,7 @@ class MatchStore {
   /** Rola o dado; `forced` vem do dado físico em modo "física real". */
   roll(forced?: number): void {
     if (!this.state || this.state.turn.phase !== 'roll' || this.busy) return;
+    if (isDeathmatch(this.state)) return; // Deathmatch: dmStore.roll(cor)
     if (engine.isTimeUp(this.state)) {
       this.tick();
       return;
@@ -284,6 +345,7 @@ class MatchStore {
 
   move(piece: number): void {
     if (!this.state || this.state.turn.phase !== 'move' || this.busy) return;
+    if (isDeathmatch(this.state)) return;
     if (!this.state.turn.legal.includes(piece)) return;
     const before = this.state;
     const after = engine.move(before, piece);
@@ -578,6 +640,11 @@ class MatchStore {
         case 'partnerTurn':
           this.toast(`${name(e.color)} joga com as peças de ${name(e.forPartner)}`, e.color);
           break;
+        case 'cannon':
+          this.toast(`💥 Canhão de ${name(e.by)} abateu ${name(e.victim)}!`, e.by);
+          sound.play('boom');
+          haptic('boom');
+          break;
       }
     }
   }
@@ -592,6 +659,15 @@ class MatchStore {
     const s = this.state;
     if (!s) {
       this.status = '';
+      return;
+    }
+    if (isDeathmatch(s)) {
+      if (s.turn.phase === 'over') this.status = 'Fim de jogo';
+      else if (s.clock && s.clock.elapsedMs === 0 && s.clock.runningSince === null) this.status = 'Todo mundo joga ao mesmo tempo · o relógio começa no primeiro lançamento';
+      else {
+        const lead = [...s.players].filter((p) => p.status !== 'removed').sort((a, b) => b.stats.captures - a.stats.captures)[0];
+        this.status = lead && lead.stats.captures > 0 ? `${lead.name} lidera com ${lead.stats.captures} ${lead.stats.captures === 1 ? 'captura' : 'capturas'} · alvo ${s.dm!.target}` : `Primeiro a ${s.dm!.target} capturas vence`;
+      }
       return;
     }
     const me = engine.currentPlayer(s)?.name ?? '';
@@ -627,6 +703,9 @@ class MatchStore {
   private reset(): void {
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
+    this.dmPending = 0;
+    this.dmLatest = null;
+    resetDmAnim?.();
     this.rolling = false;
     this.rollingValue = null;
     this.moving = null;
@@ -702,6 +781,12 @@ function persist(s: GameState | null): void {
   }
   // partida acabou: vai pro histórico na hora (mesmo que o app feche durante a animação)
   if (s && s.turn.phase === 'over') history.add(s);
+}
+
+/** Registrado pela store do Deathmatch (evita import circular). */
+let resetDmAnim: (() => void) | null = null;
+export function registerDmReset(fn: () => void): void {
+  resetDmAnim = fn;
 }
 
 export const match = new MatchStore();

@@ -92,7 +92,7 @@
       {#if game.endReason === 'abandoned'}
         <div class="tag">Encerrada sem contar</div>
       {:else if game.endReason === 'ranked'}
-        <div class="tag">Encerrada e ranqueada por progresso</div>
+        <div class="tag">Encerrada e ranqueada por {game.rules.mode === 'deathmatch' ? 'capturas' : 'progresso'}</div>
       {:else if game.endReason === 'time'}
         <div class="tag">Acabou o tempo</div>
       {/if}

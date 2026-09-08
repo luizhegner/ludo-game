@@ -21,9 +21,11 @@ src/
   engine/      motor de regras (TypeScript puro, sem DOM) + testes
     game       turno, movimento, capturas, chegada; jogadores entrando/saindo
     powers     modo Poderes: catálogo, sorteio das casas, efeitos por peça
+    deathmatch modo Deathmatch: tempo real, um ciclo rolar→mover por cor, casas seguras com prazo, canhão
     board      geometria do tabuleiro 15×15
   stores/      estado reativo (Svelte 5 runes) persistido em localStorage
     match      partida em andamento, animações, auto-move
+    dm         Deathmatch: dado/peça em movimento por cor (várias animações ao mesmo tempo)
     players    cadastro de jogadores (nome + avatar)
     history    partidas encerradas (fonte da verdade pra estatísticas/Elo)
     settings   ajustes

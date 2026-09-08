@@ -17,14 +17,15 @@ export interface TimelineItem {
 
 export function timelineOf(game: GameState, nameOf: (c: Color) => string): TimelineItem[] {
   const out: TimelineItem[] = [];
+  const dm = game.rules.mode === 'deathmatch';
   for (const e of game.log) {
-    const item = describe(e, nameOf);
+    const item = describe(e, nameOf, dm);
     if (item) out.push(item);
   }
   return out;
 }
 
-function describe(e: GameEvent, nameOf: (c: Color) => string): TimelineItem | null {
+function describe(e: GameEvent, nameOf: (c: Color) => string, dm = false): TimelineItem | null {
   const pw = describePowerEvent(e, nameOf);
   if (pw) {
     const kind: TimelineItem['kind'] = e.type === 'capture' ? 'capture' : e.type === 'boom' || e.type === 'lost' ? 'penalty' : 'power';
@@ -51,6 +52,8 @@ function describe(e: GameEvent, nameOf: (c: Color) => string): TimelineItem | nu
       };
     case 'partnerTurn':
       return { t: e.t, text: `${nameOf(e.color)} passa a jogar com as peças de ${nameOf(e.forPartner)}`, color: e.color, kind: 'info' };
+    case 'cannon':
+      return { t: e.t, text: `Canhão de ${nameOf(e.by)} abateu ${nameOf(e.victim)}`, color: e.by, kind: 'capture' };
     case 'move':
       // saída da base é um marco; movimento comum não
       if (e.from === -1) return { t: e.t, text: `${nameOf(e.color)} tirou uma peça da base`, color: e.color, kind: 'info' };
@@ -58,7 +61,7 @@ function describe(e: GameEvent, nameOf: (c: Color) => string): TimelineItem | nu
     case 'gameOver': {
       if (e.reason === 'abandoned') return { t: e.t, text: 'Partida encerrada sem contar', kind: 'over' };
       const w = e.placements?.[0];
-      const how = e.reason === 'ranked' ? ' (encerrada e ranqueada por progresso)' : e.reason === 'time' ? ' (acabou o tempo)' : '';
+      const how = e.reason === 'ranked' ? ` (encerrada e ranqueada por ${dm ? 'capturas' : 'progresso'})` : e.reason === 'time' ? ' (acabou o tempo)' : '';
       return { t: e.t, text: w ? `Fim de jogo · ${nameOf(w)} venceu${how}` : `Fim de jogo${how}`, color: w, kind: 'over' };
     }
     default:

@@ -12,7 +12,8 @@
   import Avatar from './Avatar.svelte';
 
   const resumable = $derived(match.active);
-  const who = $derived(match.state ? currentPlayer(match.state) : undefined);
+  /** Quem joga agora (no Deathmatch não existe vez: mostra o modo). */
+  const who = $derived(match.state && match.state.rules.mode !== 'deathmatch' ? currentPlayer(match.state) : undefined);
 
   const topMode = $derived(mostPlayedMode(history.list));
   const top3 = $derived(topMode ? standings(history.list, topMode).slice(0, 3) : []);
@@ -46,6 +47,8 @@
         Continuar partida
         {#if who}
           <span class="sub"><Avatar avatar={players.avatarOf(who.playerId, who.avatar)} size={20} /> vez de {players.nameOf(who.playerId, who.name)}</span>
+        {:else if match.state}
+          <span class="sub">{modeName(match.state.rules.mode)}</span>
         {/if}
       </button>
       <button class="btn big block" onclick={() => tap(() => nav.go({ page: 'new' }))}>Nova partida</button>
