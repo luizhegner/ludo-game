@@ -5,9 +5,12 @@
  * - Cada som tem uma versão sintetizada via WebAudio (funciona offline, sem arquivos).
  * - Se existir `public/sounds/<arquivo>.mp3` ou `.ogg`, o sample substitui o sintetizado
  *   (ver SONS.md pra lista e descrição de cada um).
+ * - Pacotes: com `settings.soundPack === 'og'` procura primeiro em
+ *   `public/sounds/og/<arquivo>`; o que não existir lá cai no pacote padrão
+ *   (`public/sounds/<arquivo>` → sintetizado). Trocar o pacote não exige recarregar.
  * - O AudioContext é criado/desbloqueado no primeiro toque do usuário (regra dos navegadores).
  */
-import { settings } from '../stores/settings.svelte';
+import { settings, type SoundPack } from '../stores/settings.svelte';
 
 export type SoundName =
   | 'dice'
@@ -22,7 +25,18 @@ export type SoundName =
   | 'playerDone'
   | 'victory'
   | 'turn'
-  | 'tap';
+  | 'tap'
+  // --- modo Poderes ---
+  | 'power'
+  | 'fly'
+  | 'shield'
+  | 'boom'
+  | 'mine'
+  | 'magicDice'
+  | 'multiplier'
+  | 'repopulate'
+  | 'landing'
+  | 'spring';
 
 /** Nome do arquivo (sem extensão) em public/sounds/ pra cada som. */
 export const SOUND_FILES: Record<SoundName, string> = {
@@ -39,6 +53,16 @@ export const SOUND_FILES: Record<SoundName, string> = {
   victory: 'victory',
   turn: 'turn',
   tap: 'tap',
+  power: 'power',
+  fly: 'fly',
+  shield: 'shield',
+  boom: 'boom',
+  mine: 'mine',
+  magicDice: 'magic-dice',
+  multiplier: 'multiplier',
+  repopulate: 'repopulate',
+  landing: 'landing',
+  spring: 'spring',
 };
 
 const EXTENSIONS = ['mp3', 'ogg'] as const;
@@ -113,7 +137,7 @@ function noise(
 }
 
 // ---------------------------------------------------------------------------
-// Os 13 sons sintetizados
+// Os 23 sons sintetizados
 // ---------------------------------------------------------------------------
 
 const SYNTH: Record<SoundName, Synth> = {
@@ -204,6 +228,67 @@ const SYNTH: Record<SoundName, Synth> = {
     noise(ctx, out, t0, { dur: 0.025, gain: 0.12, freq: 3000, q: 1.2 });
     tone(ctx, out, t0, { freq: 1200, to: 900, dur: 0.04, type: 'sine', gain: 0.1 });
   },
+
+  // --- modo Poderes ---
+
+  // pegou um poder: "brilho" de duas notas com cauda
+  power: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 880, dur: 0.12, type: 'triangle', gain: 0.18 });
+    tone(ctx, out, t0, { freq: 1319, dur: 0.3, type: 'sine', gain: 0.18, delay: 0.09 });
+    noise(ctx, out, t0, { dur: 0.12, gain: 0.05, freq: 5000, q: 1, delay: 0.09 });
+  },
+  // foguete: chiado de ignição crescendo, depois o "whoosh" da decolagem
+  fly: (ctx, out, t0) => {
+    noise(ctx, out, t0, { dur: 0.5, gain: 0.12, freq: 400, q: 0.5, type: 'lowpass' });
+    tone(ctx, out, t0, { freq: 60, to: 140, dur: 0.5, type: 'sawtooth', gain: 0.08 });
+    noise(ctx, out, t0, { dur: 0.7, gain: 0.28, freq: 1100, q: 0.6, type: 'bandpass', delay: 0.45 });
+    tone(ctx, out, t0, { freq: 180, to: 1600, dur: 0.7, type: 'sawtooth', gain: 0.07, delay: 0.45 });
+  },
+  // foguete pousando: baque + dois quiques menores
+  landing: (ctx, out, t0) => {
+    noise(ctx, out, t0, { dur: 0.1, gain: 0.3, freq: 600, q: 0.8, type: 'lowpass' });
+    tone(ctx, out, t0, { freq: 260, to: 90, dur: 0.16, type: 'triangle', gain: 0.32 });
+    tone(ctx, out, t0, { freq: 300, to: 120, dur: 0.1, type: 'triangle', gain: 0.18, delay: 0.24 });
+    tone(ctx, out, t0, { freq: 340, to: 150, dur: 0.07, type: 'triangle', gain: 0.1, delay: 0.42 });
+  },
+  // mola: "boing" — mola comprimindo e soltando
+  spring: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 220, to: 120, dur: 0.12, type: 'triangle', gain: 0.2 });
+    tone(ctx, out, t0, { freq: 150, to: 900, dur: 0.3, type: 'square', gain: 0.07, delay: 0.1 });
+    tone(ctx, out, t0, { freq: 900, to: 600, dur: 0.25, type: 'sine', gain: 0.12, delay: 0.38 });
+  },
+  // escudo absorvendo: "clang" metálico curto
+  shield: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 1500, to: 1100, dur: 0.22, type: 'square', gain: 0.08 });
+    tone(ctx, out, t0, { freq: 2250, to: 1800, dur: 0.3, type: 'triangle', gain: 0.12 });
+    noise(ctx, out, t0, { dur: 0.06, gain: 0.2, freq: 3500, q: 2 });
+  },
+  // bomba / mega bomba / mina: estouro grave com cauda de ruído
+  boom: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 140, to: 40, dur: 0.5, type: 'sine', gain: 0.5 });
+    noise(ctx, out, t0, { dur: 0.45, gain: 0.35, freq: 500, q: 0.5, type: 'lowpass' });
+    noise(ctx, out, t0, { dur: 0.12, gain: 0.25, freq: 2500, q: 0.8, delay: 0.01 });
+  },
+  // mina revelada: "tic-tic" de relógio + zumbido de alerta
+  mine: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 1800, dur: 0.04, type: 'square', gain: 0.08 });
+    tone(ctx, out, t0, { freq: 1800, dur: 0.04, type: 'square', gain: 0.08, delay: 0.12 });
+    tone(ctx, out, t0, { freq: 300, to: 260, dur: 0.3, type: 'sawtooth', gain: 0.08, delay: 0.2 });
+  },
+  // dado personalizável: pergunta em duas notas pra cima
+  magicDice: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 659, dur: 0.12, type: 'triangle', gain: 0.18 });
+    tone(ctx, out, t0, { freq: 988, dur: 0.22, type: 'triangle', gain: 0.18, delay: 0.13 });
+  },
+  // multiplicador em ação: dois "pings" rápidos subindo
+  multiplier: (ctx, out, t0) => {
+    tone(ctx, out, t0, { freq: 1047, dur: 0.1, type: 'sine', gain: 0.2 });
+    tone(ctx, out, t0, { freq: 1568, dur: 0.16, type: 'sine', gain: 0.2, delay: 0.1 });
+  },
+  // novas casas de poder: arpejo suave de "surgimento"
+  repopulate: (ctx, out, t0) => {
+    [784, 988, 1175, 1568].forEach((f, i) => tone(ctx, out, t0, { freq: f, dur: 0.25, type: 'sine', gain: 0.1, delay: i * 0.06 }));
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -213,9 +298,9 @@ const SYNTH: Record<SoundName, Synth> = {
 class SoundPlayer {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  /** Sample decodificado por som; `null` = não existe arquivo, usa sintetizado. */
-  private samples = new Map<SoundName, AudioBuffer | null>();
-  private loading = new Map<SoundName, Promise<AudioBuffer | null>>();
+  /** Sample decodificado por `pacote/som`; `null` = não existe arquivo nesse pacote. */
+  private samples = new Map<string, AudioBuffer | null>();
+  private loading = new Map<string, Promise<AudioBuffer | null>>();
   private unlocked = false;
   private listenersInstalled = false;
 
@@ -231,14 +316,18 @@ class SoundPlayer {
       if (!ctx || !this.master) return;
       if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
 
-      const cached = this.samples.get(name);
-      if (cached) {
-        this.playBuffer(ctx, cached);
-        return;
-      }
-      if (cached === undefined) {
-        // primeira vez: tenta carregar o sample em paralelo; enquanto isso, sintetiza
-        void this.loadSample(name);
+      // ordem de preferência: pacote escolhido → pacote padrão → sintetizado
+      for (const pack of packOrder(settings.soundPack)) {
+        const key = `${pack}/${name}`;
+        const cached = this.samples.get(key);
+        if (cached) {
+          this.playBuffer(ctx, cached);
+          return;
+        }
+        if (cached === undefined) {
+          // primeira vez: tenta carregar o sample em paralelo; enquanto isso, sintetiza
+          void this.loadSample(pack, name);
+        }
       }
       SYNTH[name](ctx, this.master, ctx.currentTime);
     } catch {
@@ -290,16 +379,18 @@ class SoundPlayer {
     src.start();
   }
 
-  private loadSample(name: SoundName): Promise<AudioBuffer | null> {
-    const pending = this.loading.get(name);
+  private loadSample(pack: SoundPack, name: SoundName): Promise<AudioBuffer | null> {
+    const key = `${pack}/${name}`;
+    const pending = this.loading.get(key);
     if (pending) return pending;
     const p = (async (): Promise<AudioBuffer | null> => {
       const ctx = this.ctx;
       if (!ctx || typeof fetch !== 'function') return null;
       const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+      const dir = pack === 'default' ? 'sounds/' : `sounds/${pack}/`;
       for (const ext of EXTENSIONS) {
         try {
-          const res = await fetch(`${base}sounds/${SOUND_FILES[name]}.${ext}`);
+          const res = await fetch(`${base}${dir}${SOUND_FILES[name]}.${ext}`);
           if (!res.ok) continue;
           const type = res.headers.get('content-type') ?? '';
           if (type.includes('text/html')) continue; // SPA fallback devolveu o index.html
@@ -312,12 +403,25 @@ class SoundPlayer {
       }
       return null;
     })();
-    this.loading.set(name, p);
+    this.loading.set(key, p);
     void p.then(
-      (buf) => this.samples.set(name, buf),
-      () => this.samples.set(name, null),
+      (buf) => this.samples.set(key, buf),
+      () => this.samples.set(key, null),
     );
     return p;
+  }
+
+  /**
+   * Pré-carrega os samples de um pacote (chamado ao ligar o switch nos Ajustes,
+   * pra não sintetizar as primeiras vezes). Nunca lança.
+   */
+  preload(pack: SoundPack = settings.soundPack): void {
+    try {
+      if (!this.context()) return;
+      for (const p of packOrder(pack)) for (const name of Object.keys(SOUND_FILES) as SoundName[]) void this.loadSample(p, name);
+    } catch {
+      /* ignora */
+    }
   }
 
   private installUnlock(): void {
@@ -332,5 +436,10 @@ class SoundPlayer {
 }
 
 const EVENTS = ['pointerdown', 'touchstart', 'mousedown', 'keydown'] as const;
+
+/** Pacotes a tentar, do preferido pro padrão. */
+export function packOrder(pack: SoundPack): SoundPack[] {
+  return pack === 'default' ? ['default'] : [pack, 'default'];
+}
 
 export const sound = new SoundPlayer();

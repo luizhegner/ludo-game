@@ -1,8 +1,12 @@
 <script lang="ts">
   import type { GameState } from '../engine/types';
   import { COLOR_HEX, COLOR_ON } from '../lib/colors';
+  import { formatDuration } from '../lib/format';
   import { playerOf } from '../engine/game';
   import { match } from '../stores/match.svelte';
+  import { players } from '../stores/players.svelte';
+  import { sound } from '../lib/sound';
+  import Avatar from './Avatar.svelte';
 
   interface Props {
     state: GameState;
@@ -12,41 +16,54 @@
 
   const medals = ['🥇', '🥈', '🥉', '4º'];
 
-  const rows = $derived(
-    (game.placements ?? []).map((c, i) => ({ color: c, place: i + 1, p: playerOf(game, c)! })),
-  );
+  const rows = $derived((game.placements ?? []).map((c, i) => ({ color: c, place: i + 1, p: playerOf(game, c)! })));
 
-  const durationMin = $derived(Math.max(1, Math.round((game.updatedAt - game.createdAt) / 60000)));
+  const rolls = $derived(game.log.filter((e) => e.type === 'roll').length);
+
+  /** Título: no Deathmatch, quem bateu a meta de capturas é o destaque. */
+  const title = $derived.by(() => {
+    if (game.endReason === 'abandoned') return 'Partida encerrada';
+    if (game.endReason === 'time') return '⏱ Acabou o tempo!';
+    if (game.rules.mode === 'deathmatch' && game.endReason === 'finished' && game.placements?.length) {
+      const w = playerOf(game, game.placements[0]);
+      if (w && w.stats.captures >= (game.dm?.target ?? 8)) return `⚔ ${players.nameOf(w.playerId, w.name)} chegou a ${w.stats.captures} capturas!`;
+    }
+    return 'Fim de jogo';
+  });
 
   function rematch() {
-    const players = game.players
+    sound.play('tap');
+    const list = game.players
       .filter((p) => p.status !== 'removed')
-      .map((p) => ({ color: p.color, playerId: p.playerId, name: p.name, avatar: p.avatar }));
-    match.start({ rules: game.rules, players });
+      .map((p) => {
+        const cur = players.get(p.playerId);
+        return { color: p.color, playerId: p.playerId, name: cur?.name ?? p.name, avatar: cur?.avatar ?? p.avatar };
+      });
+    match.start({ rules: game.rules, players: list });
   }
 </script>
 
 <div class="backdrop">
   <div class="card panel">
-    <h1>{game.endReason === 'abandoned' ? 'Partida encerrada' : 'Fim de jogo'}</h1>
+    <h1>{title}</h1>
     {#if game.placements}
       <ol class="podium">
         {#each rows as r (r.color)}
           <li style="--c:{COLOR_HEX[r.color]}; --on:{COLOR_ON[r.color]}" class:first={r.place === 1}>
             <span class="medal">{medals[r.place - 1] ?? `${r.place}º`}</span>
-            <span class="av">{r.p.avatar}</span>
-            <span class="nm">{r.p.name}</span>
-            <span class="st muted">⚔{r.p.stats.captures} ☠{r.p.stats.deaths} · {r.p.stats.sixes}× 6</span>
+            <Avatar avatar={players.avatarOf(r.p.playerId, r.p.avatar)} size={34} />
+            <span class="nm">{players.nameOf(r.p.playerId, r.p.name)}</span>
+            <span class="st muted">⚔{r.p.stats.captures} ☠{r.p.stats.deaths} · {r.p.stats.sixes}× 6{game.powers ? ` · ✨${r.p.stats.powers}` : ''}</span>
           </li>
         {/each}
       </ol>
     {:else}
       <p class="muted">Encerrada sem contar pro ranking.</p>
     {/if}
-    <p class="muted small">{durationMin} min · {game.log.filter((e) => e.type === 'roll').length} lançamentos</p>
+    <p class="muted small">{formatDuration(game.updatedAt - game.createdAt)} · {rolls} lançamentos · salva no histórico</p>
     <div class="actions">
       <button class="btn primary big block" onclick={rematch}>Revanche</button>
-      <button class="btn block" onclick={onExit}>Início</button>
+      <button class="btn block" onclick={() => { sound.play('tap'); onExit(); }}>Início</button>
     </div>
   </div>
 </div>
@@ -103,9 +120,6 @@
   .medal {
     font-size: 22px;
     text-align: center;
-  }
-  .av {
-    font-size: 22px;
   }
   .nm {
     font-size: 17px;

@@ -53,6 +53,41 @@ body {
   flex-direction: column;
 }
 
+/* tema Aurora: o fundo animado (Backdrop) aparece por trás; cards ficam levemente translúcidos */
+html[data-theme='aurora'],
+html[data-theme='aurora'] body {
+  background: transparent;
+}
+html[data-theme='aurora'] {
+  --panel: rgba(255, 255, 255, 0.82);
+  --line: rgba(31, 36, 48, 0.1);
+}
+
+/* tema OG: mesa escura vinho/marrom do jogo original; painéis escuros, texto claro */
+html[data-theme='og'],
+html[data-theme='og'] body {
+  background: transparent;
+}
+html[data-theme='og'] {
+  --bg: #2a1418;
+  --panel: rgba(64, 32, 34, 0.88);
+  --ink: #fbf3e6;
+  --muted: #cdb8a8;
+  --line: rgba(255, 235, 205, 0.14);
+  --shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.7);
+  --tabbar-bg: rgba(30, 14, 16, 0.92);
+  color-scheme: dark;
+}
+html[data-theme='og'] .btn.primary {
+  background: #5cb85c;
+  color: #fff;
+  box-shadow: 0 3px 0 #3a8a3a, 0 8px 18px -8px rgba(0, 0, 0, 0.6);
+}
+html[data-theme='og'] .btn {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+}
+
+
 button {
   font: inherit;
   color: inherit;

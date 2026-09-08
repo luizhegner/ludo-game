@@ -238,7 +238,20 @@ describe('reta final e chegada', () => {
     expect(s.turn.color).toBe('red');
   });
 
-  it('terminar com um 6 não dá jogada extra', () => {
+  it('colocar uma peça no centro dá jogada extra', () => {
+    let s = withPieces(game(), { green: [FINISH - 3, 10, BASE, BASE] });
+    s = roll(s, 3);
+    s = move(s, 0);
+    expect(s.pieces.green[0]).toBe(FINISH);
+    expect(s.turn.color).toBe('green');
+    expect(s.turn.phase).toBe('roll');
+    expect(s.turn.sixStreak).toBe(0); // não foi 6: a contagem dos três 6 não mexe
+    // e a jogada extra é normal: pode mover qualquer peça
+    s = roll(s, 4);
+    expect(s.turn.legal).toEqual([1]);
+  });
+
+  it('terminar as 4 peças não dá jogada extra (o jogador saiu da rotação)', () => {
     let s = withPieces(game(), { green: [FINISH, FINISH, FINISH, FINISH - 6] });
     s = roll(s, 6);
     s = move(s, 3);

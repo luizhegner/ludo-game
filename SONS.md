@@ -1,9 +1,33 @@
 # Sons do Ludo
 
-O jogo já toca **13 sons sintetizados** via WebAudio (não precisa de arquivo nenhum).
+O jogo já toca **23 sons sintetizados** via WebAudio (não precisa de arquivo nenhum).
 Se você quiser trocar por samples de verdade, basta colocar o arquivo em
 `public/sounds/<arquivo>.mp3` (ou `.ogg`) com o nome exato da tabela — o jogo
 detecta sozinho e usa o sample no lugar do sintetizado. Não precisa mexer em código.
+
+(Ícones e efeitos animados: ver `ARTE.md`.)
+
+## Pacote "Sons do jogo original" (`public/sounds/og/`)
+
+Switch em **Ajustes → Jogo → Sons do jogo original** (independente do tema — o
+tema é só visual). Com o switch ligado, cada som que existir em
+`public/sounds/og/<arquivo>.mp3` é usado; o que faltar cai no pacote padrão
+(`public/sounds/<arquivo>` → sintetizado). Mesmos nomes da tabela abaixo.
+
+Gerar a partir de uma gravação de tela (áudio de mídia, sem microfone):
+
+```sh
+pip install imageio-ffmpeg            # ou tenha o ffmpeg no PATH
+python3 tools/og-sons.py detectar gravacao.mp4 > eventos.txt   # lista os trechos com som (início, fim, duração)
+# preencha a última coluna de eventos.txt com o nome do som (ou escreva um cortes.txt: "inicio fim nome")
+python3 tools/og-sons.py cortar gravacao.mp4 cortes.txt public/sounds/og
+```
+
+O corte tira o silêncio do começo, aplica **um ganho único** pra sessão inteira
+(pico mais alto → −1 dBFS, preservando o balanço original entre os sons: passo
+baixinho, captura alta) e exporta mp3 mono 44,1 kHz 96 kbps. Gravação limpa
+(volume de mídia no máximo, uma ação por vez, ~1 s de pausa entre elas) é o que
+dá certo — o script não separa sons sobrepostos.
 
 Regras práticas:
 
@@ -27,6 +51,16 @@ Regras práticas:
 | `victory` | Fim da partida (tela do pódio) | Fanfarra completa de vitória, festiva, pode ter aplausos | 1,5–2,5 s |
 | `turn` | Passou a vez pro próximo jogador | "Blip" discreto de duas notas, só pra chamar atenção | 0,15 s |
 | `tap` | Toque em botão / seleção de peça | Clique suave de interface | 0,03–0,05 s |
+| `power` | Peça pisou numa casa de poder | "Brilho" curto de duas notas, tipo item coletado | 0,3–0,4 s |
+| `fly` | Foguete decolando (tremor + subida) | Chiado de ignição crescendo, depois o "whoosh" da decolagem | 1,0–1,2 s |
+| `landing` | Foguete pousando | Baque seco + dois quiques menores, cômico | 0,4–0,5 s |
+| `spring` | Pulo de mola | "Boing" de mola comprimindo e soltando | 0,5–0,6 s |
+| `shield` | Escudo absorveu um ataque/explosão | "Clang" metálico curto | 0,2–0,3 s |
+| `boom` | Bomba, mega bomba ou mina explodiu | Estouro grave com cauda | 0,4–0,6 s |
+| `mine` | Mina revelada (alguém passou por cima) | "Tic-tic" de relógio + zumbido de alerta | 0,4–0,5 s |
+| `magic-dice` | Dado personalizável: hora de escolher o número | Duas notas pra cima, em tom de pergunta | 0,3 s |
+| `multiplier` | Dado multiplicado (×2/×3) parou | Dois "pings" rápidos subindo | 0,25 s |
+| `repopulate` | Novas casas de poder apareceram | Arpejo suave de "surgimento" | 0,4–0,5 s |
 
 Onde baixar (todos com licença livre, confira cada um): [freesound.org](https://freesound.org),
 [kenney.nl/assets](https://kenney.nl/assets?q=audio) (pacotes "Interface Sounds", "Casino Audio" e

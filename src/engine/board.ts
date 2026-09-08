@@ -91,6 +91,33 @@ export const BASE_SLOTS: readonly { dr: number; dc: number }[] = [
 
 export const CENTER: Cell = { row: 7.5, col: 7.5 };
 
+/**
+ * Vagas das peças que já chegaram, dentro do triângulo da própria cor no
+ * centro (verde = esquerda, vermelho = cima, azul = direita, amarelo = baixo).
+ * Quatro posições por cor, em leque, encostadas no ponto central.
+ */
+export const FINISH_SLOTS: Record<Color, readonly { x: number; y: number }[]> = (() => {
+  // no triângulo de cima (vermelho), em coordenadas relativas ao centro:
+  // uma peça perto do vértice e uma fileira de três encostada na base do
+  // triângulo. Pensado pra peça desenhada a ~0,72 da escala normal
+  // (FINISH_SCALE na UI): assim as quatro cabem sem sair da cor.
+  const top = [
+    { x: 0, y: -0.5 },
+    { x: -0.72, y: -1.15 },
+    { x: 0, y: -1.17 },
+    { x: 0.72, y: -1.15 },
+  ];
+  const rot = (k: number) =>
+    top.map(({ x, y }) => {
+      // gira k × 90° em sentido horário
+      let px = x;
+      let py = y;
+      for (let i = 0; i < k; i++) [px, py] = [-py, px];
+      return { x: CENTER.col + px, y: CENTER.row + py };
+    });
+  return { red: rot(0), blue: rot(1), yellow: rot(2), green: rot(3) };
+})();
+
 /** Converte posição relativa (0..51) em índice absoluto do anel. */
 export function toAbsolute(color: Color, rel: number): number {
   return (rel + START_OFFSET[color]) % RING;
@@ -121,7 +148,7 @@ export function cellOf(color: Color, pos: number, pieceIndex: number): { x: numb
     const s = BASE_SLOTS[pieceIndex];
     return { x: o.col + s.dc, y: o.row + s.dr };
   }
-  if (isFinished(pos)) return { x: CENTER.col, y: CENTER.row };
+  if (isFinished(pos)) return FINISH_SLOTS[color][pieceIndex] ?? { x: CENTER.col, y: CENTER.row };
   if (isHome(pos)) {
     const c = HOME_CELLS[color][pos - HOME_START];
     return { x: c.col + 0.5, y: c.row + 0.5 };

@@ -54,7 +54,7 @@
 | Comer | Cair em casa não-segura com peça adversária manda ela pra base. **[padrão]** Se houver mais de uma adversária empilhada ali, todas voltam |
 | Bônus de captura | **Padrão: nenhum**. Opção por partida: "jogada extra ao comer" |
 | Chegar no centro | **Número exato**. Se passar, a peça não pode ser movida (move outra ou perde a vez) |
-| Bônus ao chegar no centro | **[padrão]** Nenhum |
+| Bônus ao chegar no centro | **Jogada extra**: quem coloca uma peça no centro rola de novo (vale pra dado, foguete, mola e dado personalizável). Não conta pros três 6. Quem colocou a 4ª peça só sai da rodada. As peças terminadas ficam **dentro do triângulo da cor**, perto do centro (4 vaguinhas por cor) |
 | Sem jogada possível | Mostra "sem jogadas" por ~1 s e **passa sozinho** |
 | Só uma jogada possível | **Auto-move configurável** (Ajustes). Padrão **[padrão]**: ligado |
 | Ordem de turnos | Sentido horário pelas cores; **quem começa é sorteado** |
@@ -84,15 +84,16 @@
 
 ### Deathmatch (tempo real)
 - **Todos jogam ao mesmo tempo**: cada jogador rola o seu dado quando quiser; sem turnos, sem espera além da própria animação (rolar + mover).
-- **Cada jogador tem o seu dado 3D**, na cor dele, que **rola pelo tabuleiro inteiro** e pode trombar nos outros dados.
+- **Cada jogador tem o seu dado 3D**, na cor dele, **fixo na própria base** (os de cima, verde e vermelho, ficam virados pra quem senta do outro lado da mesa). Na fase 7 o dado passa a **rolar pelo tabuleiro inteiro** e trombar nos outros dados.
 - **6** tira peça da base **ou** anda 6 casas normalmente; a diferença é que **não dá jogada extra** e não existe regra dos três 6.
 - Peças começam **na base**. Peça comida **volta pra base** e precisa de 6 pra sair.
-- **Reta final bloqueada** (🚫 na 1ª casa): ninguém chega ao centro; as peças ficam circulando pelo anel. O centro mostra **"Alvo ⚔ 8"** e o placar.
-- **Casas seguras com prazo (anti-camping):** saída e estrelas protegem por **no máximo 15 s** seguidos; depois a peça fica **vulnerável até mover** (anel de proteção ao redor da peça vai esvaziando como um relógio). **Exceção:** o **canhão** de cada base **abate na hora** qualquer adversário que parar na **estrela da sua cor** (animação: canhão gira, atira, estouro na estrela; a peça volta pra base e conta como captura do dono do canhão).
-- **Conflitos:** o motor resolve cada jogada **no instante em que o dado para** (fila por ordem de parada); a animação é só apresentação. Captura é avaliada **no pouso**: se a peça-alvo ainda está em movimento, ninguém come ninguém e as duas coexistem na casa até alguém mover. Isso evita "comer o vento".
+- **Reta final bloqueada** (🚫 na 1ª casa): ninguém chega ao centro; as peças ficam circulando pelo anel (dão a volta pela casa de saída). O centro mostra **"Alvo ⚔ 8"**; cada base mostra **⚔ capturas · ☠ mortes** no lugar do %.
+- **Casas seguras com prazo (anti-camping):** saída e estrelas protegem por **no máximo 15 s** seguidos; depois a peça fica **vulnerável até mover** (anel de proteção ao redor da peça vai esvaziando como um relógio; vermelho nos últimos 25 %, tracejado quando vulnerável). Os 15 s contam em **tempo de jogo** (não andam com o menu aberto). Peça que já estava parada quando o adversário chega ainda protegida **não é comida** — o atacante para junto e as duas coexistem até alguém mover. **Exceção:** o **canhão** de cada base **abate na hora** qualquer adversário que parar na **estrela da sua cor** (a peça fica um instante na estrela, o canhão dispara, ela volta pra base e conta como captura do dono do canhão — pode inclusive dar a 8ª captura). A estrela de uma cor **ausente** (ou removida) é casa segura normal; a própria estrela também.
+- **Conflitos:** o motor resolve cada jogada **no instante em que o dado para** (fila por ordem de parada); a animação é só apresentação. Captura é avaliada **no pouso**: se a peça-alvo ainda está em movimento, ninguém come ninguém e as duas coexistem na casa até alguém mover. Isso evita "comer o vento". Na tela, a vítima só some quando a peça atacante chega visualmente à casa. Se a peça que o jogador estava prestes a mover for comida no meio do caminho, a escolha dele é recalculada (sem opção → volta a rolar).
 - **Entrada:** toque simples no dado (rola pra cima e cai) — recomendado no Deathmatch pra tirar a mão da tela rápido; arrasto continua disponível.
-- Sem casas de poder. Sem % de progresso.
-- Colocação final: **capturas** (desc.), desempate por **menos mortes** [padrão: depois progresso].
+- Sem casas de poder. Sem % de progresso. **"Jogada extra ao comer" não existe** aqui (a opção some da Nova partida).
+- **Tempo:** cronômetro de 5:00 começa no **primeiro lançamento de qualquer jogador** e pausa enquanto o menu está aberto (como no 5 Minutos). Quando zera, a UI recusa novos lançamentos e espera as peças em movimento pousarem pra fechar.
+- Colocação final: **capturas** (desc.), desempate por **menos mortes**, depois ordem de cor [padrão]. Jogador removido fica em último. Pausar/remover até sobrar um ativo encerra a partida. ⋮ → Encerrar → **"Encerrar e ranquear por capturas"**.
 
 ---
 
@@ -100,6 +101,7 @@
 
 ### Casas de poder
 - **10 casas** de poder no anel (**8 visíveis + 2 minas escondidas**), em **posições aleatórias** a cada partida. **[padrão]** Nunca em casa segura/saída, nunca na reta final, nunca em casa ocupada no momento do sorteio.
+- Opção por partida **"Minas visíveis"** (Nova partida → passo 3, lembrada pra próxima): as minas aparecem com o ícone 💀 desde o sorteio e nas reposições. Padrão: escondidas.
 - **Visíveis:** cada casa mostra o **ícone do poder** (dá pra desviar de propósito). **Segurar o dedo** na casa mostra o que o poder faz **na área de status abaixo do tabuleiro** (não embaixo do dedo). ⋮ → Regras lista todos os poderes ativos.
 - Casa de poder **não é segura**.
 - Ao pisar, o poder é **consumido imediatamente** e a casa fica vazia. Minas explodidas também contam como consumidas. Quando sobrarem **4** (visíveis + escondidas), repovoa pra **10** em lugares novos (com 2 minas novas escondidas).
@@ -115,14 +117,14 @@
 |---|---|
 | 🛡️ **Escudo** | A peça fica protegida até **absorver 1 ataque**. Quando um adversário cai nela: o escudo some e **o atacante volta pra onde estava** (movimento anulado). |
 | ❄️ **Congelar** (azar) | A peça que pisou fica **1 rodada sem poder ser movida**. Apaga o fogo, se tiver. |
-| 🪀 **Mola** | A peça pula **4 a 9 casas (aleatório)** pra frente. Se pousar em adversário em casa não-segura, **come**. Mesmas regras de reta final do foguete. |
+| 🪀 **Mola** | A peça pula **até a próxima casa segura** (estrela ou saída colorida) no sentido do movimento — como no jogo original, diferente do foguete. Lá ninguém come ninguém (é segura). Se não houver casa segura antes da reta final, entra na reta e para no máximo possível (até 6 casas). |
 | 🎯 **Dado personalizável** | Na hora: o jogador **escolhe um número de 1 a 6** e **essa peça** anda imediatamente. Escolher 6 dá jogada extra normal (e conta pros 3 seis). |
 | ✖️2 / ✖️3 **Multiplicador** | Na **próxima vez** do jogador, rola 1 dado e **essa mesma peça** anda o valor **× 2 (ou × 3)**. Um 6 multiplicado é só **12 ou 18 casas**: **não dá jogada extra** e não conta pros três 6. Se a peça não puder andar o valor multiplicado (passaria do centro), o multiplicador é **perdido** e o dado vale como jogada normal (qualquer peça, 6 dá extra) **[padrão]**. **Só multiplica o número do dado:** se a peça multiplicada cair em foguete/mola, o pulo usa o valor próprio deles, sem multiplicar. |
 | 🚀 **Foguete** | A peça voa **6 a 20 casas (aleatório)** pra frente. Se pousar em adversário em casa não-segura, **come**. Voa por cima (não interage com o caminho). Entra na reta final normalmente; se exceder o centro, para no **máximo possível**. |
 | 💣 **Bomba** (azar) | **Só a peça que pisou** volta pra base. |
 | 💥 **Mega bomba** (azar) | **Todas as peças num raio de 2 casas** (inclusive as suas e do parceiro), mais a que pisou, voltam pra base. **Casa segura NÃO protege.** **Escudo absorve** (some, peça fica). |
-| 💀 **Mina** (azar, escondida) | Parece casa normal. Quem **parar** nela volta pra base e a mina some. Quem **passar por cima** sem parar **revela** a mina pra todos (fica visível até alguém pisar). **Escudo absorve** (some, peça fica). Peça com **fogo** que passa por cima **detona** a mina (some sem vítima). Sempre 2 no tabuleiro, ligadas por padrão. |
-| 🔥 **Fogo** | A peça fica em chamas por **1 rodada** do jogador (o próximo movimento dela). Enquanto anda, **toda peça adversária que ela passar por cima ou parar em cima volta pra base**, exceto: peças em **casa segura** (ilesas), peças com **escudo** (o escudo é destruído, a peça fica) e, no 2v2, o **parceiro**. **Parar em cima de escudo** segue a regra do escudo: escudo quebra e **a peça com fogo volta pra onde estava** (quem ela queimou no caminho continua queimado). Apaga antes se: cair em ❄️ congelar, entrar na reta final, ou ser comida. **[padrão]** Só age em movimento de dado (não durante voo de foguete). |
+| 💀 **Mina** (azar, escondida) | Parece casa normal. Quem **parar** nela volta pra base e a mina some. Quem **passar por cima** sem parar **revela** a mina pra todos (fica visível até alguém pisar). **Escudo absorve** (some, peça fica). Peça com **fogo** que passa por cima **detona** a mina (some sem vítima). Sempre 2 no tabuleiro, ligadas por padrão. Com a opção **"Minas visíveis"** ligada, já nascem reveladas. |
+| 🔥 **Fogo** | A peça fica em chamas **até queimar alguém** (não expira com o tempo — como no jogo original). Enquanto anda, **toda peça adversária que ela passar por cima ou parar em cima volta pra base**, exceto: peças em **casa segura** (ilesas), peças com **escudo** (o escudo é destruído, a peça fica) e, no 2v2, o **parceiro**. **Parar em cima de escudo** segue a regra do escudo: escudo quebra e **a peça com fogo volta pra onde estava** (quem ela queimou no caminho continua queimado). O fogo **apaga ao queimar** (captura ou escudo quebrado) e também se: cair em ❄️ congelar, entrar na reta final, ou ser comida. **[padrão]** Só age em movimento de dado (não durante voo de foguete). |
 
 **[padrão]** Peça com fogo pode ser comida normalmente. Peça congelada pode ser comida normalmente.
 
@@ -184,10 +186,12 @@ Barra inferior fixa com 5 abas: **Jogar · Jogadores · Ranking · Histórico ·
 | **Jogadores** | Lista com avatar, nome, Elo do modo mais jogado; + criar; toque abre detalhes; editar/excluir |
 | **Ranking** | Seletor de modo, filtro de período, tabela |
 | **Histórico** | Lista (data, modo, vencedor, participantes). Ao abrir: resumo + estatísticas por jogador + **linha do tempo com horário** ("19:44 João comeu Maria", "19:45 Ana pegou 🚀 e voou 14 casas") |
-| **Ajustes** | Sons, vibração, auto-move, modo do dado (física real / sorteio), Exportar backup, Importar backup, apagar tudo, versão |
+| **Ajustes** | Sons, vibração (Desligada / Suave / Normal), auto-move, modo do dado (física real / sorteio), aparência (Creme / Aurora), Exportar backup, Importar backup, apagar tudo, versão |
 
 - **Retomar partida:** salva a cada jogada; fechou o app, volta de onde parou. Sem "desfazer".
-- Sons sintetizados via WebAudio (dado rolando/parando, peça, captura, poder, vitória). Vibração só em eventos importantes. Ambos com toggle.
+- Sons sintetizados via WebAudio (dado rolando/parando, peça, captura, poder, vitória), com toggle.
+- **Vibração** em três níveis: **Desligada · Suave [padrão] · Normal**. O celular costuma estar **apoiado na mesa**, então nada de zumbido longo: só pulsos curtos tipo "clique" (Suave ≤ 25 ms, Normal ≤ 40 ms por pulso; o "peso" de um evento vem de repetir pulsos, nunca de alongar). A Vibration API não controla força, só duração — por isso a diferença entre os níveis é o tamanho dos pulsos e quais eventos vibram (Normal também vibra a cada casa andada). No Android a vibração do navegador segue o perfil de som (silencioso/Não perturbe = sem vibração) e precisa de "Interação por toque" ligada; o Ajustes explica isso. iPhone não suporta.
+- **Aparência**: fundo **Creme** (liso, padrão) ou **Aurora** (manchas de cor vibrantes e desfocadas, em movimento lento atrás do jogo, estilo Apple Music; respeita "reduzir movimento" do sistema).
 
 ---
 
@@ -230,18 +234,76 @@ Three.js/cannon-es são **camada de apresentação** do dado: entregam um númer
 
 ## 12. Fases de construção
 
-| Fase | Entrega |
-|---|---|
-| **1. Núcleo** | Motor de regras + tabuleiro + peças + dado simples. Partida completa no Clássico, com testes do motor |
-| **2. Interface** | Abas, Jogar, Nova partida (3 passos), Jogadores (cadastro/avatar), Ajustes básicos |
-| **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba |
-| **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) |
-| **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON |
-| **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico |
-| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio |
-| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages |
+| Fase | Entrega | Estado |
+|---|---|---|
+| **1. Núcleo** | Motor de regras + tabuleiro + peças + dado simples. Partida completa no Clássico, com testes do motor | ✅ |
+| **2. Interface** | Abas, Jogar, Nova partida (3 passos), Jogadores (cadastro/avatar), Ajustes básicos | ✅ |
+| **3. Poderes** | Um por vez, testado isolado: escudo → bomba → congelar → fogo → foguete → mola → personalizável → ×2/×3 → mina → mega bomba | ✅ |
+| **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) | ✅ (Deathmatch com dado por jogador fixo na base; o dado rolando pelo tabuleiro fica pra fase 7) |
+| **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON | adiantada na fase 2 (ver abaixo) |
+| **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | página Ranking já existe (por vitórias); falta o Elo |
+| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio | |
+| **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages | sons e PWA já entraram |
+
+### O que a fase 2 entregou (além do combinado)
+
+Como as páginas Ranking e Histórico fazem parte da barra de abas, ficou mais barato entregá-las funcionando
+do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
+
+- **Navegação:** 5 abas fixas (Jogar · Jogadores · Ranking · Histórico · Ajustes). Telas de detalhe empilham por cima
+  e o **botão/gesto "voltar" do Android fecha a tela de cima** (History API) em vez de fechar o app. Nova partida e
+  Partida são tela cheia (sem abas).
+- **Jogar:** Continuar partida (com a vez de quem é) · Nova partida · Top 3 do modo mais jogado · últimas 3 partidas.
+- **Nova partida em 3 passos:** modo (cards; modos das fases 3/4 aparecem como "em breve") → cores × jogadores
+  (grade 2×2 na disposição do tabuleiro; toca na cor e escolhe/cria no cadastro; mesmo jogador não repete cor) →
+  regras (jogada extra ao comer). **Vem pré-preenchida com a última partida.**
+- **Cadastro de jogadores:** nome (até 16, sem repetir) + avatar **emoji (48 opções) ou foto** da galeria/câmera
+  (recortada no centro, 128×128 JPEG, salva local). Editar e excluir (o histórico mantém o nome da época).
+  Detalhes: partidas, vitórias, % vitória, colocação média, maior sequência, comidas/perdidas, seis, últimas partidas.
+- **Histórico:** lista agrupada por dia; detalhe com resumo, tabela por jogador (⚔ ☠ 6 🎲) e **linha do tempo com
+  horário** (começo, saídas da base, capturas, três 6, chegadas, fim). Revanche com os mesmos · apagar.
+  A partida entra no histórico **no instante em que acaba** (mesmo que o app feche durante a animação).
+- **Ranking (provisório, por vitórias):** seletor de modo + período (semana/mês/ano/tudo). Vira Elo na fase 6 —
+  o histórico completo já está guardado, então o Elo será recalculado retroativamente.
+- **Ajustes:** sons, vibração (3 níveis), mover sozinho, modo do dado (sorteio × física real), aparência (Creme × Aurora), **exportar/importar backup JSON**
+  (jogadores + histórico + ajustes), apagar tudo, versão.
+- **Dentro da partida:** menu ⋮ → Jogadores agora usa o cadastro pra adicionar/substituir; fotos aparecem na base.
+- **[padrão]** Fotos não vão pro histórico (viram 🙂 no arquivo); a UI resolve o avatar atual pelo id do jogador.
+  O histórico fica em **IndexedDB** (uma partida completa dá ~80 KB de log; em localStorage caberiam só ~60).
 
 ---
+
+### O que a fase 3 entregou
+
+- **Motor** (`src/engine/powers.ts` + `game.ts`): sorteio das 10 casas por raridade (8 visíveis + 2 minas escondidas; nunca em casa
+  segura nem ocupada), reposição pra 10 quando sobram 4, consumo ao pisar com **encadeamento**, e os 11 poderes com as regras da
+  seção 5. Cada poder tem seu bloco de testes isolado (`src/engine/powers.test.ts`, 59 testes) mais uma partida inteira simulada.
+- **Estado**: `GameState.powers = { cells, effects, pending }` ao lado de `pieces` (partidas antigas continuam abrindo).
+  Nova fase de turno `'pick'` (dado personalizável) e eventos próprios no log (`power`, `fly`, `boom`, `shieldBlock`, …).
+- **Interface**: ícone na casa com fundo por família; **segurar o dedo** mostra a explicação na área de status; peças mostram
+  escudo (anel azul), fogo (chama), gelo (bloco ❄️) e multiplicador pendente (×2/×3); **foguete** decola em três atos (tremor
+  com chama, voo inclinado, pouso caótico com quiques) e a **mola** agacha e salta num arco; seletor
+  1–6 no centro do tabuleiro pro dado personalizável; toasts e 10 sons novos (ver `SONS.md`); ⋮ → Regras lista os poderes e marca os
+  desligados; Nova partida → passo 3 liga/desliga cada poder (lembrado pra próxima); histórico mostra os eventos na linha do tempo
+  e a coluna ✨ (poderes pegos).
+- **[padrão]** Quando um poder leva a peça pra casa de outro poder, a peça pausa um instante na primeira casa antes de continuar,
+  pra dar pra acompanhar. Peça com fogo que passa por cima de mina escondida a detona sem vítima (como na seção 5).
+
+### O que a fase 4 entregou (Deathmatch)
+
+- **Motor** (`src/engine/deathmatch.ts`, puro, 19 testes): sem turno global — cada cor tem seu próprio ciclo `roll → move` em
+  `state.dm.players[cor]`; `dmRoll`/`dmMove` aplicam a jogada no instante do toque, na ordem em que chegam. O anel dá a volta
+  (posição 0–51, sem reta final); captura no pouso; casa segura guarda um carimbo de **tempo de jogo** (`safeSince`) e protege
+  por 15 s; canhão = parar na estrela de outra cor presente; vitória imediata aos 8; `timeUp` ranqueia por capturas → menos
+  mortes → ordem de cor; `endGame(true)` idem, `endGame(false)` abandona. Peças que o jogador ia mover e foram comidas no
+  meio-tempo são revalidadas (`legal` recalculado; sem opção, volta a rolar).
+- **Interface**: um dado por jogador na própria base (os do topo virados 180°), habilitado só quando é hora daquele jogador
+  rolar; peças de todas as cores podem estar andando ao mesmo tempo (`movings`); a vítima continua desenhada na casa até a
+  atacante chegar; peça abatida pelo canhão fica um instante na estrela antes de voltar; anel de proteção esvaziando ao redor
+  das peças em casa segura; centro "Alvo ⚔ 8"; bases com ⚔/☠; cabeçalho com quem lidera; reta final apagada com 🚫.
+- **Decisões [padrão]** que o usuário pode mudar: 15 s em tempo de jogo (não em tempo de parede); canhão só na estrela de
+  cores presentes; sem jogada extra no 6 nem ao comer; peça protegida bloqueia a captura mas não o pouso (coexistência);
+  desempate por menos mortes e depois ordem de cor (Elo vem na fase 6).
 
 ## 13. Fora de escopo (por enquanto)
 
