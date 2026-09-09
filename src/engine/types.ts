@@ -43,8 +43,6 @@ export const POWERS: readonly Power[] = [
 
 export interface Rules {
   mode: Mode;
-  /** Jogada extra ao comer uma peça adversária. */
-  captureBonus: boolean;
   /** Poderes desligados nesta partida (só nos modos com poderes). Ausente = todos ligados. */
   disabledPowers?: Power[];
   /** Minas aparecem desde que são colocadas (em vez de escondidas até alguém passar por cima). */

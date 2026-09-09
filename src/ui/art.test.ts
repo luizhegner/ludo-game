@@ -2,17 +2,30 @@ import { it, expect } from 'vitest';
 import { powerIconUrl, uiIconUrl, isOgPowerIcon, FX_DECLARED, OG_FX_DECLARED, OG_POWER_KEYS, normalizeKey } from '../lib/art.svelte';
 import { settings } from '../stores/settings.svelte';
 
-it('sem arquivos de arte, tudo cai no padrão (emoji / desenho) — inclusive no tema OG', () => {
+it('pacote de ícones do jogo original: vale pelo switch "iconPack" (qualquer tema) e pelo tema OG', () => {
+  settings.theme = 'cream';
+  settings.iconPack = 'default';
+  // sem arte na pasta padrão → emoji
   expect(powerIconUrl('rocket')).toBeNull();
   expect(powerIconUrl('bomb')).toBeNull();
   expect(uiIconUrl('tab-home')).toBeNull();
   expect(Object.keys(FX_DECLARED)).toEqual([]);
   expect(Object.keys(OG_FX_DECLARED)).toEqual([]);
-  expect(OG_POWER_KEYS).toEqual([]);
+  // os 8 recortes da folha do jogo original estão na pasta (tools/og-folha.py)
+  expect([...OG_POWER_KEYS].sort()).toEqual([
+    'bomb', 'fire', 'freeze', 'magicdice', 'mine', 'rocket', 'shield', 'spring',
+  ]);
+  // switch de Ajustes → Aparência, independente do tema
+  settings.iconPack = 'og';
+  expect(powerIconUrl('rocket')).toMatch(/og\/powers\/rocket\.png$/);
+  expect(isOgPowerIcon('rocket')).toBe(true);
+  expect(powerIconUrl('x2')).toBeNull(); // x2/x3 não têm recorte no pacote → seguem o texto
+  // tema OG continua sendo o atalho antigo pros mesmos arquivos
+  settings.iconPack = 'default';
   settings.theme = 'og';
-  expect(powerIconUrl('rocket')).toBeNull();
-  expect(isOgPowerIcon('rocket')).toBe(false);
+  expect(powerIconUrl('shield')).toMatch(/og\/powers\/shield\.png$/);
   settings.theme = 'cream';
+  expect(powerIconUrl('shield')).toBeNull();
   // nomes de arquivo tolerantes: mega-bomb, megaBomb, Mega_Bomb → a mesma chave
   expect(normalizeKey('mega-bomb')).toBe(normalizeKey('megaBomb'));
   expect(normalizeKey('Mega_Bomb')).toBe('megabomb');
@@ -24,8 +37,10 @@ import Pawn from './Pawn.svelte';
 import { createGame } from '../engine/game';
 
 it('tabuleiro desenha as casas de poder com <text> quando não há arte; peão usa o desenho padrão sem sprite', () => {
+  settings.theme = 'cream';
+  settings.iconPack = 'default';
   const g = createGame({
-    rules: { mode: 'powers', captureBonus: false },
+    rules: { mode: 'powers' },
     players: [
       { color: 'green', playerId: 'a', name: 'A', avatar: '' },
       { color: 'red', playerId: 'b', name: 'B', avatar: '' },

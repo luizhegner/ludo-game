@@ -67,7 +67,7 @@ export interface NewGameConfig {
   now?: number;
 }
 
-export const DEFAULT_RULES: Rules = { mode: 'classic', captureBonus: false };
+export const DEFAULT_RULES: Rules = { mode: 'classic' };
 
 export function createGame(cfg: NewGameConfig): GameState {
   if (cfg.players.length < 2) throw new Error('mínimo 2 jogadores');
@@ -130,7 +130,7 @@ export function createGame(cfg: NewGameConfig): GameState {
   }
   if (state.rules.mode === 'deathmatch') {
     // tempo real: todo mundo começa com o próprio dado pronto; `turn` não é usado
-    state.rules.captureBonus = false;
+    // (e jogada extra não existe aqui — comer dá extra só nos modos com turno)
     state.dm = { target: DM_TARGET, players: {}, safeSince: {} };
     for (const p of players) state.dm.players[p.color] = { phase: 'roll', dice: null, legal: [] };
   }
@@ -411,7 +411,7 @@ export function move(state: GameState, piece: number, now = Date.now()): GameSta
   const out = walk(s, pc, piece, destination(from, dice * (mult ?? 1)), 'dice', now, controllerOf(s, color));
 
   let extra = mult ? false : dice === 6;
-  if (out.captured > 0 && s.rules.captureBonus) extra = true;
+  if (out.captured > 0) extra = true; // comer dá jogada extra (regra base; no 2v2, "comer" o parceiro não conta)
   if (out.finished) extra = true; // chegar ao centro dá jogada extra
   return endOfMove(s, color, out, extra, now);
 }
@@ -445,7 +445,7 @@ export function pick(state: GameState, value: number, now = Date.now()): GameSta
 
   const out = walk(s, pc, piece, from + value, 'dice', now, controllerOf(s, color));
   if (value === 6) extra = true;
-  if (out.captured > 0 && s.rules.captureBonus) extra = true;
+  if (out.captured > 0) extra = true; // comer dá jogada extra (regra base)
   if (out.finished) extra = true;
   return endOfMove(s, color, out, extra, now);
 }
@@ -614,7 +614,7 @@ function threeSixes(s: GameState, color: Color, now: number): number | null {
 // ---------------------------------------------------------------------------
 
 interface Outcome {
-  /** Adversários comidos por pouso ou fogo (pra jogada extra opcional). */
+  /** Adversários comidos por pouso ou fogo (contam pra jogada extra do "comer"). */
   captured: number;
   /** Escudos quebrados pelo fogo no caminho (consomem o fogo, mas não contam como captura). */
   shieldsBroken: number;

@@ -42,10 +42,12 @@ src/
   assets/art/  ícones e efeitos animados opcionais (powers/, ui/, fx/) — sem arquivo, vale o emoji/desenho padrão
 public/sounds/ samples opcionais (ver SONS.md) — sem arquivo, vale o som sintetizado
 public/sounds/og/ pacote "sons do jogo original" (switch nos Ajustes; ver SONS.md)
-src/assets/art/og/ recortes do jogo original, só no tema OG (ver ARTE.md §2b)
+src/assets/art/og/ ícones do jogo original (switch em Ajustes → Aparência) + sprites do tema OG (ver ARTE.md §2b)
 tools/         og-icones.py (recorta casas de poder dos prints) e og-sons.py (corta os sons da gravação)
 ```
 
 Pra trocar ícones, efeitos e sons por arquivos de verdade: **`ARTE.md`** (especificações e lista do que procurar).
+
+Histórico de versões: **`CHANGELOG.md`**.
 
 Chaves no localStorage: `ludo.match.v1`, `ludo.players.v1`, `ludo.settings.v1`, `ludo.lastSetup.v2`. O histórico fica no **IndexedDB** (banco `ludo`, store `games`); uma partida completa tem ~80 KB e o localStorage não daria conta.

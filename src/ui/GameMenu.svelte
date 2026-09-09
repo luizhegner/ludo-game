@@ -131,7 +131,7 @@
         {/if}
         <div><b>6:</b> joga de novo · três 6 seguidos: última peça movida volta pra base e perde a vez</div>
         <div><b>Casas seguras:</b> saída de cada cor + as 4 estrelas</div>
-        <div><b>Comer:</b> cair em adversário fora de casa segura manda ele pra base{game.rules.captureBonus ? ' e você joga de novo' : ''}</div>
+        <div><b>Comer:</b> cair em adversário fora de casa segura manda ele pra base e você joga de novo</div>
         <div><b>Centro:</b> número exato · quem coloca uma peça no centro joga de novo</div>
         {#if game.rules.mode === 'quick'}
           <div><b>Fim:</b> vence quem colocar o primeiro peão no centro</div>

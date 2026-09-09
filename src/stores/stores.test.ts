@@ -193,10 +193,12 @@ describe('linha do tempo', () => {
 
 describe('ajustes', () => {
   it('aplica parcial, ignora lixo e volta ao padrão', () => {
-    applySettings({ sound: false, diceMode: 'physics', autoMove: 'sim' as unknown as boolean });
+    applySettings({ sound: false, autoMove: 'sim' as unknown as boolean, diceMode: 'physics' } as Partial<typeof DEFAULT_SETTINGS>);
     expect(settings.sound).toBe(false);
-    expect(settings.diceMode).toBe('physics');
     expect(settings.autoMove).toBe(true);
+    // chave antiga do modo do dado: ignorada e não persiste (o resultado nunca vem da física)
+    expect(settings as unknown as Record<string, unknown>).not.toHaveProperty('diceMode');
+    expect(JSON.parse(localStorage.getItem('ludo.settings.v1')!)).not.toHaveProperty('diceMode');
     applySettings({}, true);
     expect(settings).toEqual(DEFAULT_SETTINGS);
   });
@@ -265,16 +267,25 @@ describe('ajustes', () => {
     expect(packOrder('default')).toEqual(['default']);
     expect(packOrder('og')).toEqual(['og', 'default']);
   });
+
+  it('pacote de ícones: independente do tema, aceita default/og e ignora lixo', () => {
+    applySettings({ iconPack: 'og' });
+    expect(settings.iconPack).toBe('og');
+    expect(settings.theme).toBe('cream'); // não mexe no tema
+    applySettings({ iconPack: 'emoji' as unknown as Settings['iconPack'] });
+    expect(settings.iconPack).toBe('og');
+    applySettings({}, true);
+    expect(settings.iconPack).toBe('default');
+  });
 });
 
 describe('última configuração de partida', () => {
   it('salva e recarrega, com padrão seguro', () => {
     expect(loadSetup().mode).toBe('classic');
-    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, captureBonus: true, disabledPowers: ['mine'], visibleMines: true });
+    saveSetup({ mode: 'quick', slots: { green: 'a', red: 'b', blue: null, yellow: null }, disabledPowers: ['mine'], visibleMines: true });
     const s = loadSetup();
     expect(s.mode).toBe('quick');
     expect(s.slots.green).toBe('a');
-    expect(s.captureBonus).toBe(true);
     expect(s.disabledPowers).toEqual(['mine']);
     expect(s.visibleMines).toBe(true);
     clearSetup();

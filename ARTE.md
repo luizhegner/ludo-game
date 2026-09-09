@@ -81,22 +81,27 @@ Notas:
   pega todo mundo em volta).
 - A mina precisa parecer **azar**, não poder bom.
 
-## 2b. Pacote OG — recortes do jogo original (`src/assets/art/og/`)
+## 2b. Pacote OG — ícones do jogo original (`src/assets/art/og/`)
 
-Só valem com o tema **OG** ligado (Ajustes → Aparência). Com o tema OG a ordem
-é `og/powers/` → `powers/` → emoji; nos outros temas a pasta `og/` é ignorada.
-Uso pessoal, entre amigos — não é arte pra distribuir.
+Os ícones valem com o switch **"Ícones do jogo original"** ligado (Ajustes →
+Aparência — independente do tema, igual ao switch de sons) **ou** com o tema
+**OG** (o tema continua sendo o atalho antigo). Com o pacote ligado, a ordem é
+`og/powers/` → `powers/` → emoji; desligado, a pasta `og/` é ignorada. Os
+sprites `og/fx/` só valem com o tema OG. Uso pessoal, entre amigos — não é
+arte pra distribuir.
 
 | Pasta | O quê | Formato |
 |---|---|---|
-| `og/powers/<poder>.png` | casa de poder inteira, recortada do print (já com o fundo da casa) | PNG 128×128, cantos arredondados transparentes |
+| `og/powers/<poder>.png` | ícone do poder recortado da folha do jogo original (fundo transparente; o fundo colorido da casa continua sendo do nosso jogo) | PNG 128×128 |
 | `og/fx/<efeito>@N.png` | sprite sheets (mesma spec da seção 4) | PNG/WebP |
 
 Diferença pro ícone "próprio": o recorte OG é desenhado **ocupando a casa
-toda** (`preserveAspectRatio: slice` + recorte arredondado), porque ele já traz
-o fundo colorido da casa original. Nomes: os mesmos da tabela da seção 2
-(`shield`, `freeze`, `spring`, `rocket`, `magic-dice`, `x2`, `x3`, `bomb`,
-`mega-bomb`, `mine`, `fire`).
+quase toda** (`preserveAspectRatio: slice` + recorte arredondado) pra imitar o
+enquadramento do original. Nomes: os mesmos da tabela da seção 2 (`shield`,
+`freeze`, `spring`, `rocket`, `magic-dice`, `x2`, `x3`, `bomb`, `mega-bomb`,
+`mine`, `fire`). Já estão recortados da folha os 8 poderes da família que
+aparecem no anel: `rocket` · `shield` · `fire` · `freeze` · `mine` · `bomb`
+(TNT) · `spring` · `magic-dice`.
 
 ### Como gerar a partir dos prints (automático)
 
@@ -111,6 +116,18 @@ O script acha o tabuleiro pela cor dos 4 quadrantes (funciona com qualquer
 resolução; em vídeo reescalado sem proporção usa escalas separadas). Prints em
 **PNG** e na resolução nativa dão recortes nítidos (~70 px por casa no S21 →
 128 px final sem borrar).
+
+Pra separar uma **folha de ícones** (tira horizontal com o fundo xadrez
+"queimado" no PNG), use `tools/og-folha.py`:
+
+```sh
+python3 tools/og-folha.py folha.png            # 8 nomes padrão, esq. → dir.
+python3 tools/og-folha.py folha.png --contato  # prévia pra conferir a transparência
+```
+
+Ele detecta as duas cores do xadrez (e remove sombras cinza se o xadrez for
+escuro), preserva buracos fechados do ícone (miolo branco do foguete) e salva
+128×128 com o conteúdo em ~85% da tela.
 
 ---
 

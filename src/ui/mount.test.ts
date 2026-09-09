@@ -535,13 +535,14 @@ describe('fase 4 pela UI: 5 Minutos e 2v2', () => {
     expect(document.documentElement.dataset.theme).toBe('og');
     const color = match.state!.turn.color;
 
-    // cabeçalho OG: avatar emoldurado, contadores e a mãozinha (é hora de rolar)
+    // tabuleiro centralizado: quem joga aparece nos cantos — o quadrado da vez é o do dado
     expect(document.querySelector('.screen.og')).not.toBeNull();
-    const who = document.querySelector('.who-og')!;
-    expect(who).not.toBeNull();
-    expect(who.textContent).toContain('✕ 0');
-    expect(who.textContent).toContain('☠ 0');
-    expect(who.querySelector('.point')).not.toBeNull();
+    const turnCard = document.querySelector('.pcorner.turn')!;
+    expect(turnCard).not.toBeNull();
+    expect(turnCard.textContent).toContain('✕ 0');
+    expect(turnCard.textContent).toContain('☠ 0');
+    expect(document.querySelector('.point-og')).not.toBeNull();
+    expect(document.querySelector('.pcorner:not(.turn) .pframe')).not.toBeNull(); // avatar no canto do adversário
     expect(document.querySelector('.who')).toBeNull(); // o pill do tema claro não aparece
 
     // tabuleiro com moldura e pulso só no quadrante da vez
@@ -554,10 +555,10 @@ describe('fase 4 pela UI: 5 Minutos e 2v2', () => {
     match.roll(6);
     tick(TIMING.dice + TIMING.autoMove + TIMING.out + 100);
     expect(match.state!.pieces[color][0]).toBe(0);
-    expect(document.querySelector('.who-og .point')).not.toBeNull(); // 6 → rola de novo
+    expect(document.querySelector('.point-og')).not.toBeNull(); // 6 → rola de novo
     match.roll(4);
     tick(TIMING.dice + TIMING.autoMove);
-    expect(document.querySelector('.who-og .point')).toBeNull(); // movendo: sem mãozinha
+    expect(document.querySelector('.point-og')).toBeNull(); // movendo: sem mãozinha
     tick(TIMING.step * 3);
     expect(match.moving!.pos).toBe(3);
     const ghosts = document.querySelectorAll('.board .ghost');
@@ -589,7 +590,7 @@ describe('fase 4 pela UI: 5 Minutos e 2v2', () => {
     expect(s0.dm).toBeTruthy();
 
     // dois dados na tela (um por jogador), os dois habilitados; sem "vez de"
-    expect(document.querySelectorAll('.dm-dice .dice').length).toBe(2);
+    expect(document.querySelectorAll('.dice-pos .dice').length).toBe(2);
     expect(document.querySelectorAll('.dice:not([disabled])').length).toBe(2);
     expect(document.querySelector('.who')).toBeNull();
     expect(text()).toContain('Deathmatch');
@@ -659,7 +660,7 @@ describe('fase 4 pela UI: 5 Minutos e 2v2', () => {
     expect(match.state!.turn.phase).toBe('over');
     expect(match.state!.endReason).toBe('time');
     expect(document.querySelector('.podium')).toBeTruthy();
-    expect(document.querySelectorAll('.dm-dice').length).toBe(0);
+    expect(document.querySelectorAll('.dice-pos').length).toBe(0);
     expect(history.list.length).toBe(1);
     unmount(app);
   });

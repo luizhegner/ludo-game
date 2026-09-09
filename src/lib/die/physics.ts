@@ -15,10 +15,11 @@ import {
   WebGLRenderer,
   Texture,
   CanvasTexture,
+  Quaternion,
 } from 'three';
 import type { Color } from '../../engine/types';
 import { COLOR_HEX } from '../colors';
-import { topFace, topFaceConfidence, validFace } from './face';
+import { rotationForFace, topFace, topFaceConfidence, validFace } from './face';
 import type { DiePose, DieRoll, DieScene, DieSceneOptions } from './types';
 
 const BOARD = 15;
@@ -27,9 +28,10 @@ const WALL_T = 0.35;
 const WALL_H = 4;
 const MAX_DRAG = 260;
 const HOME_WAIT = 900;
+const SNAP_MS = 240;
 const HOME_MS = 480;
 
-type Phase = 'idle' | 'rolling' | 'hold' | 'homing';
+type Phase = 'idle' | 'rolling' | 'snap' | 'hold' | 'homing';
 
 interface Actor {
   id: string;
@@ -49,6 +51,12 @@ interface Actor {
   dragY: number;
   promise: Promise<DieRoll> | null;
   resolve: ((roll: DieRoll) => void) | null;
+  /** Face sorteada ANTES do gesto: a animação pousa nela (a física não decide). */
+  forceValue: number;
+  snapFrom: Quaternion | null;
+  snapTo: Quaternion | null;
+  snapValue: DieRoll['value'];
+  snapT: number;
 }
 
 /**
@@ -195,6 +203,11 @@ export class PhysicsTable {
       dragY: 0,
       promise: null,
       resolve: null,
+      forceValue: 0,
+      snapFrom: null,
+      snapTo: null,
+      snapValue: 1,
+      snapT: 0,
     });
     this.kick();
   }
@@ -213,10 +226,15 @@ export class PhysicsTable {
     return { id, x: a.mesh.position.x, y: a.mesh.position.z, rolling: a.phase === 'rolling' };
   }
 
-  roll(id: string, dragX = 0, dragY = 0): Promise<DieRoll> {
+  /**
+   * `forceValue` é o número sorteado pela camada de apresentação no toque: quando
+   * presente, a simulação é só animação e o dado é assentado nessa face.
+   */
+  roll(id: string, dragX = 0, dragY = 0, forceValue?: number): Promise<DieRoll> {
     const a = this.actors.get(id);
     if (!a || this.disposed) return Promise.resolve({ value: 1, dragX, dragY });
     if (a.promise) return a.promise;
+    a.forceValue = forceValue !== undefined && validFace(forceValue) ? forceValue : 0;
     a.dragX = clamp(dragX, -MAX_DRAG, MAX_DRAG);
     a.dragY = clamp(dragY, -MAX_DRAG, MAX_DRAG);
     a.promise = new Promise<DieRoll>((resolve) => (a.resolve = resolve));
@@ -332,6 +350,13 @@ export class PhysicsTable {
         if (speed < 0.28) a.settleFor += dt;
         else a.settleFor = 0;
         if (a.settleFor > 0.22 || time - a.rollStarted > 3200) this.finish(a, topFace(a.mesh.quaternion));
+      } else if (a.phase === 'snap') {
+        busy = true;
+        a.snapT = Math.min(1, a.snapT + dt * (1000 / SNAP_MS));
+        const t = easeOut(a.snapT);
+        if (a.snapFrom && a.snapTo) a.mesh.quaternion.copy(a.snapFrom).slerp(a.snapTo, t);
+        a.mesh.position.y += (DIE_SIZE / 2 - a.mesh.position.y) * Math.min(1, dt * 14);
+        if (a.snapT >= 1) this.settle(a, a.snapValue);
       } else if (a.phase === 'hold') {
         busy = true;
         if (time >= a.holdUntil) this.startHome(a);
@@ -363,7 +388,26 @@ export class PhysicsTable {
 
   private finish(a: Actor, raw: number): void {
     if (!a.promise) return;
-    const value = validFace(raw) ? raw : 1;
+    const value: DieRoll['value'] = validFace(raw) ? raw : 1;
+    const forced = a.forceValue;
+    a.forceValue = 0;
+    if (validFace(forced) && forced !== value) {
+      // Resultado pré-sorticado: corrige o pouso suavemente para a face certa.
+      a.snapFrom = a.mesh.quaternion.clone();
+      a.snapTo = rotationForFace(forced);
+      a.snapValue = forced;
+      a.snapT = 0;
+      a.phase = 'snap';
+      a.body.velocity.set(0, 0, 0);
+      a.body.angularVelocity.set(0, 0, 0);
+      a.body.sleep();
+      return;
+    }
+    this.settle(a, value);
+  }
+
+  /** Dado assentado: resolve a promessa da jogada e entra em espera antes de voltar à base. */
+  private settle(a: Actor, value: DieRoll['value']): void {
     const result: DieRoll = { value, dragX: a.dragX, dragY: a.dragY };
     const resolve = a.resolve;
     a.promise = null;
@@ -395,8 +439,8 @@ export class PhysicsDie implements DieScene {
     return this.table.running;
   }
 
-  roll(dragX = 0, dragY = 0): Promise<DieRoll> {
-    return this.table.roll('main', dragX, dragY).then((r) => {
+  roll(dragX = 0, dragY = 0, forceValue?: number): Promise<DieRoll> {
+    return this.table.roll('main', dragX, dragY, forceValue).then((r) => {
       this.onResult?.(r);
       return r;
     });

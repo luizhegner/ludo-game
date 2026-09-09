@@ -12,9 +12,12 @@
  * - `fx/`     — sprite sheets animados (`fire.png`, `shield@16.webp`…):
  *               tira horizontal de quadros quadrados; nº de quadros é lido
  *               do tamanho da imagem (largura ÷ altura); `@N` no nome = fps.
- * - `og/powers/`, `og/fx/` — o mesmo, mas só valem com o tema **OG** ligado
- *               (recortes do jogo original). Com o tema OG, a ordem é
- *               `og/` → pasta normal → padrão (emoji/desenho).
+ * - `og/powers/` — pacote "Ícones do jogo original" (Ajustes → Aparência):
+ *               os mesmos nomes da pasta `powers/`, recortados do jogo
+ *               original. Vale em QUALQUER tema (switch `settings.iconPack`)
+ *               e também com o tema **OG** ligado (o tema segue sendo o
+ *               atalho antigo). Ordem: `og/powers/` → `powers/` → emoji.
+ * - `og/fx/`   — sprite sheets do jogo original, só com o tema **OG**.
  */
 import type { Power } from '../engine/types';
 import { settings } from '../stores/settings.svelte';
@@ -77,12 +80,18 @@ const ogPowerIcons = index(OG_POWER_FILES);
 export const OG_POWER_KEYS: string[] = [...ogPowerIcons.keys()];
 
 /**
- * URL do ícone do poder, ou null pra usar o emoji. No tema OG, prefere o
- * recorte do jogo original (`og/powers/`), se existir. Reativo ao tema.
+ * URL do ícone do poder, ou null pra usar o emoji. Com o pacote de ícones do
+ * jogo original ligado (Ajustes → Aparência, ou tema OG), prefere o recorte
+ * (`og/powers/`) se existir. Reativo ao ajuste.
  */
+/** true quando o pacote de ícones do jogo original está valendo (switch próprio OU tema OG). */
+export function ogIconsActive(): boolean {
+  return settings.iconPack === 'og' || settings.theme === 'og';
+}
+
 export function powerIconUrl(p: Power): string | null {
   const key = normalizeKey(p);
-  if (settings.theme === 'og') {
+  if (ogIconsActive()) {
     const og = ogPowerIcons.get(key);
     if (og) return og;
   }
@@ -91,7 +100,7 @@ export function powerIconUrl(p: Power): string | null {
 
 /** true se o ícone atual do poder é o recorte OG (desenhado ocupando a casa inteira). */
 export function isOgPowerIcon(p: Power): boolean {
-  return settings.theme === 'og' && ogPowerIcons.has(normalizeKey(p));
+  return ogIconsActive() && ogPowerIcons.has(normalizeKey(p));
 }
 
 /** URL de um ícone da interface (`tab-home`, `menu`…), ou null pra usar o emoji. */

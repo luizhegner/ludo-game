@@ -42,7 +42,6 @@ describe('Deathmatch — criação e ciclo por jogador', () => {
     expect(s.dm!.target).toBe(DM_TARGET);
     for (const c of ALL) expect(dmPlayer(s, c)).toEqual({ phase: 'roll', dice: null, legal: [] });
     expect(s.clock).toEqual({ elapsedMs: 0, runningSince: null });
-    expect(s.rules.captureBonus).toBe(false);
     expect(ALL.every((c) => dmCanAct(s, c))).toBe(true);
   });
 

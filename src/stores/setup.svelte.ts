@@ -8,7 +8,6 @@ export interface Setup {
   mode: Mode;
   /** playerId por cor (null = cor vazia). */
   slots: Record<Color, string | null>;
-  captureBonus: boolean;
   /** Poderes desligados na última partida com poderes. */
   disabledPowers: Power[];
   /** Minas aparecem no tabuleiro desde o sorteio (em vez de escondidas). */
@@ -20,7 +19,7 @@ const KEY = 'ludo.lastSetup.v2';
 export const EMPTY_SLOTS: Record<Color, string | null> = { green: null, red: null, blue: null, yellow: null };
 
 export function defaultSetup(): Setup {
-  return { mode: 'classic', slots: { ...EMPTY_SLOTS }, captureBonus: false, disabledPowers: [], visibleMines: false };
+  return { mode: 'classic', slots: { ...EMPTY_SLOTS }, disabledPowers: [], visibleMines: false };
 }
 
 export function loadSetup(): Setup {
@@ -31,7 +30,8 @@ export function loadSetup(): Setup {
       return {
         mode: v.mode ?? 'classic',
         slots: { ...EMPTY_SLOTS, ...(v.slots ?? {}) },
-        captureBonus: !!v.captureBonus,
+        // 'captureBonus' saiu das regras (comer = jogada extra sempre); se vier de
+        // um save antigo, é simplesmente ignorado
         disabledPowers: Array.isArray(v.disabledPowers) ? v.disabledPowers.filter((p) => POWERS.includes(p)) : [],
         visibleMines: !!v.visibleMines,
       };

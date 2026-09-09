@@ -9,8 +9,11 @@
   interface Props {
     tokens: DieToken[];
     boardPx: number;
-    /** Sem `value`, o store sorteia; com `value`, o motor usa a face física. */
-    onRoll: (id: string, value?: number) => void;
+    /**
+     * Chamado ao assentar o dado. `value` é a face sorteada NO TOQUE (antes do
+     * deslize) — nunca lida da física; `visualDone` marca que a animação 3D já rolou.
+     */
+    onRoll: (id: string, value?: number, visualDone?: boolean) => void;
     /** Fallback CSS: face e giro. */
     faces?: Record<string, number | null>;
     rolling?: Record<string, boolean>;
@@ -22,6 +25,8 @@
   let fallback = $state(false);
   let poses: Record<string, DiePose> = $state({});
   let grabbing: string | null = $state(null);
+  /** Número sorteado no instante do toque; a animação apenas pousa nele. */
+  let armedValue: number | null = null;
   let pointer: { x: number; y: number } | null = null;
 
   const cell = $derived(boardPx / 15);
@@ -77,10 +82,16 @@
     for (const t of tokens) table.ensureDie(t.id, t.color, t.homeX, t.homeY);
   });
 
+  /** Dado honesto: 1–6 uniforme, decidido fora da física. */
+  function drawFace(): number {
+    return 1 + Math.floor(Math.random() * 6);
+  }
+
   function down(id: string, e: PointerEvent) {
     const tok = tokens.find((t) => t.id === id);
     if (!tok?.enabled || grabbing || poses[id]?.rolling) return;
     grabbing = id;
+    armedValue = drawFace();
     pointer = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     e.preventDefault();
@@ -96,15 +107,17 @@
     const id = grabbing;
     const dx = e.clientX - pointer.x;
     const dy = e.clientY - pointer.y;
+    const forced = armedValue;
     pointer = null;
     grabbing = null;
+    armedValue = null;
     e.preventDefault();
     if (!table) {
-      onRoll(id);
+      onRoll(id, forced ?? undefined);
       return;
     }
     soundStart();
-    table.roll(id, dx, dy).then((result) => onRoll(id, result.value));
+    table.roll(id, dx, dy, forced ?? undefined).then((result) => onRoll(id, forced ?? result.value, true));
   }
 
   function keydown(id: string, e: KeyboardEvent) {
@@ -113,8 +126,9 @@
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
     soundStart();
-    if (table) table.roll(id).then((result) => onRoll(id, result.value));
-    else onRoll(id);
+    const forced = drawFace();
+    if (table) table.roll(id, 0, 0, forced).then((result) => onRoll(id, result.value, true));
+    else onRoll(id, forced);
   }
 
   function left(t: DieToken): number {
@@ -146,7 +160,7 @@
         aria-busy={busy}
         onpointerdown={(e) => down(t.id, e)}
         onpointerup={up}
-        onpointercancel={() => { pointer = null; grabbing = null; }}
+        onpointercancel={() => { pointer = null; grabbing = null; armedValue = null; }}
         onkeydown={(e) => keydown(t.id, e)}
       ></button>
     {/each}
@@ -199,5 +213,7 @@
     width: var(--size);
     height: var(--size);
     z-index: 3;
+    /* desliza até o quadrado do próximo jogador */
+    transition: left 0.45s cubic-bezier(0.3, 0.8, 0.3, 1), top 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
   }
 </style>

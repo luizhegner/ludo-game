@@ -26,9 +26,9 @@
     void settings.sound;
     void settings.haptics;
     void settings.autoMove;
-    void settings.diceMode;
     void settings.theme;
     void settings.soundPack;
+    void settings.iconPack;
     saveSettings();
   });
 
@@ -148,6 +148,12 @@
   <section>
     <h2>Aparência</h2>
     <div class="card group">
+      <Toggle
+        label="Ícones do jogo original"
+        hint="Troca os emojis dos poderes pela arte do jogo original (as casas mantêm o fundo colorido). Vale em qualquer tema; sem os arquivos na pasta, nada muda."
+        checked={settings.iconPack === 'og'}
+        onchange={(on) => (settings.iconPack = on ? 'og' : 'default')}
+      />
       <div class="radio">
         {#each THEMES as t (t.id)}
           <button class="opt" class:on={settings.theme === t.id} onclick={() => setTheme(t.id)}>
@@ -159,28 +165,6 @@
             <span class="swatch {t.id}"></span>
           </button>
         {/each}
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <h2>Dado</h2>
-    <div class="card group">
-      <div class="radio">
-        <button class="opt" class:on={settings.diceMode === 'seeded'} onclick={() => { sound.play('tap'); settings.diceMode = 'seeded'; }}>
-          <span class="mark"></span>
-          <span class="txt">
-            <span class="tl">Sorteio + animação</span>
-            <span class="muted small">O número é sorteado antes e o dado termina na face certa. Recomendado.</span>
-          </span>
-        </button>
-        <button class="opt" class:on={settings.diceMode === 'physics'} onclick={() => { sound.play('tap'); settings.diceMode = 'physics'; }}>
-          <span class="mark"></span>
-          <span class="txt">
-            <span class="tl">Física real</span>
-            <span class="muted small">A face que ficar pra cima é o resultado. O dado rola com física real e arrasto.</span>
-          </span>
-        </button>
       </div>
     </div>
   </section>

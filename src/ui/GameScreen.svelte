@@ -14,7 +14,6 @@
   import { settings } from '../stores/settings.svelte';
   import Avatar from './Avatar.svelte';
   import Board from './Board.svelte';
-  import Dice from './Dice.svelte';
   import PhysDice from './PhysDice.svelte';
   import GameMenu from './GameMenu.svelte';
   import GameOver from './GameOver.svelte';
@@ -63,12 +62,18 @@
     const best = [...list].sort((a, b) => b.stats.captures - a.stats.captures || a.stats.deaths - b.stats.deaths)[0];
     return best ?? null;
   });
-  const dmDicePos = (c: Color) => {
+  /**
+   * Onde o dado descansa: no tema OG, no quadrado-avatar (canto externo da base,
+   * como no jogo original); nos outros temas, no centro da base.
+   */
+  const CORNER_IN = 1.9;
+  const dieHome = (c: Color) => {
     const o = BASE_ORIGIN[c];
-    return { x: o.col + 3, y: o.row + 3 };
+    if (!og) return { x: o.col + 3, y: o.row + 3 };
+    return { x: o.col === 0 ? CORNER_IN : 15 - CORNER_IN, y: o.row === 0 ? CORNER_IN : 15 - CORNER_IN };
   };
-  /** Dado do Deathmatch: girando de cabeça pra baixo pra quem senta do outro lado (vermelho/verde = topo). */
-  const dmFlip = (c: Color) => c === 'green' || c === 'red';
+  /** Jogadores nos cantos do tabuleiro (tema OG): o da vez tem o dado no quadrado. */
+  const cornerPlayers = $derived(game.players.filter((p) => p.status !== 'removed'));
 
   // menu aberto pausa o relógio (ações explícitas, sem efeito reativo)
   function openMenu() {
@@ -88,11 +93,27 @@
   /** Face do dado: enquanto gira, o valor já sorteado; parado, a última face. */
   const diceValue = $derived(match.rollingValue ?? match.diceFace);
 
-  /** Posição do dado dentro da base da cor da vez, em células. */
-  const dicePos = $derived.by(() => {
-    const o = BASE_ORIGIN[turn];
-    return { x: o.col + 3, y: o.row + 3 };
+  /** Um dado por cor no Deathmatch; no modo clássico, o dado da vez. */
+  const diceTokens = $derived.by(() => {
+    if (dm) {
+      return dmColors.map((c) => {
+        const h = dieHome(c);
+        return { id: c, color: c, homeX: h.x, homeY: h.y, enabled: dmStore.canRoll(c, game) };
+      });
+    }
+    const h = dieHome(turn);
+    return [{ id: 'main', color: turn, homeX: h.x, homeY: h.y, enabled: canRoll }];
   });
+  const diceFaces = $derived.by(() =>
+    dm
+      ? Object.fromEntries(dmColors.map((c) => [c, dmStore.anim[c].rollingValue ?? dmStore.anim[c].face]))
+      : { main: diceValue },
+  );
+  const diceRolling = $derived.by(() =>
+    dm
+      ? Object.fromEntries(dmColors.map((c) => [c, dmStore.anim[c].rolling]))
+      : { main: match.rolling },
+  );
 </script>
 
 <div class="screen" class:og class:dm>
@@ -110,14 +131,8 @@
         </span>
       </div>
     {:else if og && me}
-      <!-- OG: avatar num quadrado com a borda na cor da vez, ✕ capturas / ☠ mortes, e a mãozinha quando é hora de rolar -->
-      <div class="who-og" style="--c:{COLOR_HEX[turn]}">
-        {#if canRoll}<span class="point" aria-hidden="true">👉</span>{/if}
-        <span class="frame"><Avatar avatar={players.avatarOf(me.playerId, me.avatar)} size={34} /></span>
-        <span class="stats" aria-label="capturas e mortes">
-          <span>✕ {me.stats.captures}</span>
-          <span>☠ {me.stats.deaths}</span>
-        </span>
+      <!-- OG: quem joga aparece nos cantos do tabuleiro; o cabeçalho fica limpo -->
+      <div class="who-og" aria-label="quem joga">
         <span class="name">{players.nameOf(me.playerId, me.name)}</span>
         {#if piecesColor !== turn}
           <span class="for" style="--pc:{COLOR_HEX[piecesColor]}" title="jogando com as peças do parceiro"></span>
@@ -162,42 +177,49 @@
       onPowerRelease={() => match.hideInfo()}
     >
       {#snippet overlay(cell)}
-        {#if game.turn.phase !== 'over' && settings.diceMode === 'physics'}
+        {#if game.turn.phase !== 'over'}
+          <!-- Dado 3D (fallback CSS automático se não houver WebGL): o número é sorteado
+               no toque, antes do deslize; a física é só animação e pousa na face certa. -->
           <PhysDice
             boardPx={cell * 15}
-            tokens={dm
-              ? dmColors.map((c) => ({ id: c, color: c, homeX: dmDicePos(c).x, homeY: dmDicePos(c).y, enabled: dmStore.canRoll(c, game) }))
-              : [{ id: 'main', color: turn, homeX: dicePos.x, homeY: dicePos.y, enabled: canRoll }]}
-            faces={dm
-              ? Object.fromEntries(dmColors.map((c) => [c, dmStore.anim[c].rollingValue ?? dmStore.anim[c].face]))
-              : { main: diceValue }}
-            rolling={dm
-              ? Object.fromEntries(dmColors.map((c) => [c, dmStore.anim[c].rolling]))
-              : { main: match.rolling }}
-            onRoll={(id, value) => {
-              if (dm) dmStore.roll(id as Color, value, { visualDone: value != null });
-              else match.roll(value, { visualDone: value != null });
+            tokens={diceTokens}
+            faces={diceFaces}
+            rolling={diceRolling}
+            onRoll={(id, value, visual) => {
+              const opts = { visualDone: visual ?? value != null };
+              if (dm) dmStore.roll(id as Color, value, opts);
+              else match.roll(value, opts);
             }}
           />
-        {:else if dm && game.turn.phase !== 'over'}
-          {#each dmColors as c (c)}
-            {@const a = dmStore.anim[c]}
-            {@const pos = dmDicePos(c)}
+          {#if og && !dm && canRoll}
+            <!-- mãozinha no quadrado de quem joga (como no original) -->
+            {@const h = dieHome(turn)}
             <div
-              class="dice-pos dm-dice"
-              class:flip={dmFlip(c)}
-              style="left:{pos.x * cell}px; top:{pos.y * cell}px; --size:{Math.max(80, cell * 3.2)}px"
+              class="point-og"
+              style="left:{(h.x + (h.x < 7.5 ? 2.5 : -2.5)) * cell}px; top:{(h.y + (h.y < 7.5 ? 2.4 : -2.4)) * cell}px"
+              aria-hidden="true"
             >
-              <Dice color={c} value={a.rollingValue ?? a.face} enabled={dmStore.canRoll(c, game)} size={Math.max(80, cell * 3.2)} rolling={a.rolling} onRoll={() => dmStore.roll(c)} />
+              👉
             </div>
-          {/each}
-        {:else if game.turn.phase !== 'over'}
-          <div
-            class="dice-pos"
-            style="left:{dicePos.x * cell}px; top:{dicePos.y * cell}px; --size:{Math.max(80, cell * 3.2)}px"
-          >
-            <Dice color={turn} value={diceValue} enabled={canRoll} size={Math.max(80, cell * 3.2)} rolling={match.rolling} onRoll={() => match.roll()} />
-          </div>
+          {/if}
+          {#if og && !dm}
+            <!-- avatares nos cantos do tabuleiro; no quadrado da vez mora o dado -->
+            {#each cornerPlayers as p (p.color)}
+              {@const h = dieHome(p.color)}
+              {@const isTurn = p.color === turn}
+              <div
+                class="pcorner"
+                class:turn={isTurn}
+                style="left:{h.x * cell}px; top:{(h.y + (isTurn ? (h.y < 7.5 ? 2.15 : -2.15) : 0)) * cell}px; --c:{COLOR_HEX[p.color]}; --cell:{cell}px"
+              >
+                {#if !isTurn}
+                  <span class="pframe"><Avatar avatar={players.avatarOf(p.playerId, p.avatar)} size={30} /></span>
+                {/if}
+                <span class="pname">{players.nameOf(p.playerId, p.name)}</span>
+                <span class="pstats" aria-label="capturas e mortes">✕ {p.stats.captures} · ☠ {p.stats.deaths}</span>
+              </div>
+            {/each}
+          {/if}
         {/if}
         {#if picks.length}
           <!-- dado personalizável: escolha do número, no centro do tabuleiro -->
@@ -302,35 +324,8 @@
     font-size: 16px;
     min-width: 0;
   }
-  .who-og .frame {
-    display: inline-grid;
-    place-items: center;
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.35);
-    border: 3px solid var(--c);
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 18px -2px var(--c);
-    flex: none;
-  }
-  .who-og .stats {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: 13px;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-    color: #fbf3e6;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-    flex: none;
-  }
   .who-og .name {
     max-width: 34vw;
-  }
-  .who-og .point {
-    font-size: 24px;
-    animation: point 0.9s ease-in-out infinite;
-    flex: none;
   }
   @keyframes point {
     0%,
@@ -391,22 +386,69 @@
     width: min(100%, calc(100dvh - 190px));
     margin: 0 auto;
   }
-  .dice-pos {
+  /* Tema OG: tabuleiro no meio da tela; sobra espaço para deslizar o dado (layout do original) */
+  .screen.og .board-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .screen.og .status {
+    flex: none;
+  }
+  /* quadrado-avatar de cada jogador no canto externo da base */
+  .pcorner {
     position: absolute;
     transform: translate(-50%, -50%);
-    width: var(--size);
-    height: var(--size);
-    z-index: 3;
-    pointer-events: auto;
-    /* desliza até a base do próximo jogador */
-    transition: left 0.45s cubic-bezier(0.3, 0.8, 0.3, 1), top 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    width: calc(var(--cell) * 4.2);
+    pointer-events: none;
+    z-index: 5;
   }
-  /* Deathmatch: um dado fixo por base; os de cima viram pra quem senta do outro lado da mesa */
-  .dm-dice {
-    transition: none;
+  .pcorner :global(*) {
+    pointer-events: none;
   }
-  .dm-dice.flip {
-    transform: translate(-50%, -50%) rotate(180deg);
+  .pframe {
+    display: inline-grid;
+    place-items: center;
+    width: calc(var(--cell) * 2.4);
+    height: calc(var(--cell) * 2.4);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 3px solid var(--c);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 14px -2px var(--c);
+  }
+  .pname {
+    max-width: 100%;
+    font-size: calc(var(--cell) * 0.62);
+    font-weight: 800;
+    line-height: 1.05;
+    color: #fbf3e6;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pstats {
+    font-size: calc(var(--cell) * 0.55);
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: #fbf3e6;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  }
+  .point-og {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-size: clamp(22px, calc(var(--cell) * 1.4), 40px);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    animation: point 0.9s ease-in-out infinite;
+    z-index: 5;
+    pointer-events: none !important;
   }
   .dm-head {
     display: flex;
