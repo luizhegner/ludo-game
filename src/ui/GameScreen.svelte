@@ -66,7 +66,7 @@
    * Onde o dado descansa: no tema OG, no quadrado-avatar (canto externo da base,
    * como no jogo original); nos outros temas, no centro da base.
    */
-  const CORNER_IN = 1.9;
+  const CORNER_IN = 1.65;
   const dieHome = (c: Color) => {
     const o = BASE_ORIGIN[c];
     if (!og) return { x: o.col + 3, y: o.row + 3 };
@@ -196,7 +196,7 @@
             {@const h = dieHome(turn)}
             <div
               class="point-og"
-              style="left:{(h.x + (h.x < 7.5 ? 2.5 : -2.5)) * cell}px; top:{(h.y + (h.y < 7.5 ? 2.4 : -2.4)) * cell}px"
+              style="left:{(h.x + (h.x < 7.5 ? 1.85 : -1.85)) * cell}px; top:{(h.y + (h.y < 7.5 ? 1.85 : -1.85)) * cell}px; --cell:{cell}px"
               aria-hidden="true"
             >
               👉
@@ -210,12 +210,11 @@
               <div
                 class="pcorner"
                 class:turn={isTurn}
-                style="left:{h.x * cell}px; top:{(h.y + (isTurn ? (h.y < 7.5 ? 2.15 : -2.15) : 0)) * cell}px; --c:{COLOR_HEX[p.color]}; --cell:{cell}px"
+                style="left:{h.x * cell}px; top:{(h.y + (isTurn ? (h.y < 7.5 ? 2.35 : -2.35) : 0)) * cell}px; --c:{COLOR_HEX[p.color]}; --cell:{cell}px"
               >
                 {#if !isTurn}
-                  <span class="pframe"><Avatar avatar={players.avatarOf(p.playerId, p.avatar)} size={30} /></span>
+                  <span class="pframe"><Avatar avatar={players.avatarOf(p.playerId, p.avatar)} size={26} /></span>
                 {/if}
-                <span class="pname">{players.nameOf(p.playerId, p.name)}</span>
                 <span class="pstats" aria-label="capturas e mortes">✕ {p.stats.captures} · ☠ {p.stats.deaths}</span>
               </div>
             {/each}
@@ -404,8 +403,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    width: calc(var(--cell) * 4.2);
+    gap: 2px;
+    max-width: calc(var(--cell) * 3.4);
     pointer-events: none;
     z-index: 5;
   }
@@ -415,36 +414,26 @@
   .pframe {
     display: inline-grid;
     place-items: center;
-    width: calc(var(--cell) * 2.4);
-    height: calc(var(--cell) * 2.4);
-    border-radius: 10px;
+    width: calc(var(--cell) * 2.1);
+    height: calc(var(--cell) * 2.1);
+    border-radius: 9px;
     background: rgba(0, 0, 0, 0.35);
     border: 3px solid var(--c);
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 14px -2px var(--c);
   }
-  .pname {
-    max-width: 100%;
-    font-size: calc(var(--cell) * 0.62);
-    font-weight: 800;
-    line-height: 1.05;
-    color: #fbf3e6;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .pstats {
-    font-size: calc(var(--cell) * 0.55);
-    font-weight: 700;
+    font-size: clamp(9px, calc(var(--cell) * 0.46), 13px);
+    font-weight: 800;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     color: #fbf3e6;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    white-space: nowrap;
   }
   .point-og {
     position: absolute;
     transform: translate(-50%, -50%);
-    font-size: clamp(22px, calc(var(--cell) * 1.4), 40px);
+    font-size: clamp(16px, calc(var(--cell) * 0.85), 26px);
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     animation: point 0.9s ease-in-out infinite;
     z-index: 5;

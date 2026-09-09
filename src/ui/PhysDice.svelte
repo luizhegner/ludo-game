@@ -3,6 +3,7 @@
   import type { DiePose, DieToken } from '../lib/die/types';
   import type { PhysicsTable } from '../lib/die/physics';
   import { sound } from '../lib/sound';
+  import { COLOR_HEX } from '../lib/colors';
   import { haptic } from '../stores/settings.svelte';
   import Dice from './Dice.svelte';
 
@@ -154,7 +155,7 @@
         class="grab"
         class:enabled={t.enabled && !busy}
         class:busy
-        style="left:{left(t)}px; top:{top(t)}px; --s:{cell * 2.6}px"
+        style="left:{left(t)}px; top:{top(t)}px; --s:{cell * 2.6}px; --c:{COLOR_HEX[t.color]}"
         disabled={!t.enabled || busy}
         aria-label={t.enabled ? 'Arraste o dado para rolar pelo tabuleiro' : 'Dado'}
         aria-busy={busy}
@@ -194,18 +195,30 @@
   .grab:disabled {
     cursor: default;
   }
+  /* moldura quadrada na cor do jogador, como no original (não um anel circular) */
   .grab.enabled::after {
     content: '';
     position: absolute;
-    inset: -8px;
-    border-radius: 50%;
-    border: 3px solid #1f2430;
-    opacity: 0.35;
+    inset: -5px;
+    border-radius: 24%;
+    border: 3px solid var(--c, #fff);
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: 0 0 14px -2px var(--c, #fff);
+    opacity: 0.9;
     animation: halo 1.2s ease-in-out infinite;
     pointer-events: none;
   }
   .grab:active {
     cursor: grabbing;
+  }
+  @keyframes halo {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
   }
   .dice-pos {
     position: absolute;
