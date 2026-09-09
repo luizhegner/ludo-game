@@ -31,7 +31,8 @@ export interface DieSceneOptions {
 
 export interface DieScene {
   readonly running: boolean;
-  roll(dragX?: number, dragY?: number): Promise<DieRoll>;
+  /** `forceValue`: face já sorteada; a animação termina nela. */
+  roll(dragX?: number, dragY?: number, forceValue?: number): Promise<DieRoll>;
   resize(size: number): void;
   setColor?(color: Color): void;
   dispose(): void;

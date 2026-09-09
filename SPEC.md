@@ -84,7 +84,7 @@
 
 ### Deathmatch (tempo real)
 - **Todos jogam ao mesmo tempo**: cada jogador rola o seu dado quando quiser; sem turnos, sem espera além da própria animação (rolar + mover).
-- **Cada jogador tem o seu dado 3D**, na cor dele, **fixo na própria base** (os de cima, verde e vermelho, ficam virados pra quem senta do outro lado da mesa). Na fase 7 o dado passa a **rolar pelo tabuleiro inteiro** e trombar nos outros dados.
+- **Cada jogador tem o seu dado 3D**, na cor dele, **fixo no quadrado da própria base** — no tema OG, no canto externo, em cima do avatar (os de cima, verde e vermelho, ficam virados pra quem senta do outro lado da mesa). O dado **rola pelo tabuleiro inteiro** e tromba nos outros dados; o número dele também vem do sorteio no toque, nunca da física.
 - **6** tira peça da base **ou** anda 6 casas normalmente; a diferença é que **não dá jogada extra** e não existe regra dos três 6.
 - Peças começam **na base**. Peça comida **volta pra base** e precisa de 6 pra sair.
 - **Reta final bloqueada** (🚫 na 1ª casa): ninguém chega ao centro; as peças ficam circulando pelo anel (dão a volta pela casa de saída). O centro mostra **"Alvo ⚔ 8"**; cada base mostra **⚔ capturas · ☠ mortes** no lugar do %.
@@ -133,13 +133,12 @@
 ## 6. Dado 3D
 
 - **Cubo real em WebGL** (Three.js + cannon-es): **branco clássico, pontos pretos, arestas na cor do jogador da vez** (como no mock), sombra projetada sobre o tabuleiro, leve animação de repouso.
-- **Descansa dentro da base** da cor de quem joga.
-- **Lançamento por arrasto:** toca, arrasta e solta — direção e velocidade do gesto viram impulso + rotação. O dado **rola por cima do tabuleiro inteiro**, bate nas bordas invisíveis, para, mostra a face; depois de ~1 s volta pra base do próximo jogador.
-- **Toque simples** também lança: o dado **pula pra cima** com giro aleatório e cai perto de onde estava (sem deslocamento lateral, já que não houve arrasto). Vale em todos os modos.
+- **Descansa no quadrado do jogador da vez**: no tema OG é o canto externo da base — o mesmo quadrado do avatar, como no jogo original (o avatar vira o botão de rolar na vez dele); nos outros temas, o centro da base. Depois de rolar, o dado volta para o quadrado do próximo jogador.
+- **Lançamento por arrasto:** toca, arrasta na direção que quiser e solta — direção e velocidade do gesto viram impulso + rotação. O dado **rola por cima do tabuleiro inteiro**, bate nas bordas invisíveis, para, mostra a face.
+- **Toque simples** também lança: o dado **pula pra cima** com giro aleatório e cai perto de onde estava. Vale em todos os modos.
 - Se parar de quina, recebe um empurrãozinho automático.
-- **Resultado — configurável em Ajustes:**
-  - **Física real:** a face que ficou pra cima é o resultado.
-  - **Sorteio + animação** (padrão): o número é sorteado antes e a simulação termina na face certa.
+- **Resultado — nunca vem da física [padrão]:** o número é sorteado **no instante do toque, antes do deslize**, e o 3D é só animação: se o dado físico parar na face errada, o pouso é corrigido (snap suave) para a face sorteada. Não existe mais a opção "física real" — assim o estilo de deslizar não vira vantagem. Se WebGL não estiver disponível, o dado CSS (com o número já sorteado pelo store) assume.
+- **Layout do OG:** tabuleiro **centralizado na tela**, sobrando espaço para o gesto; avatares dos jogadores nos **cantos do tabuleiro** (nome + ✕ capturas + ☠ mortes no quadrado de cada um), e a mãozinha 👉 marca o quadrado de quem joga.
 - Dado personalizável: seletor 1–6 (sem lançamento). Multiplicador: o dado para e o número **cresce pra "×2 = 8"** antes de mover.
 - **Deathmatch:** um dado por jogador, todos na cena ao mesmo tempo, com colisão entre eles.
 - **Implementação:** o jogo nasce com um dado simples (fase 1) e o dado físico entra na **fase 7**, quando tudo já funciona.
@@ -181,12 +180,12 @@ Barra inferior fixa com 5 abas: **Jogar · Jogadores · Ranking · Histórico ·
 |---|---|
 | **Jogar** | "Continuar partida" (se houver), "Nova partida" (grande), **top 3** do ranking (modo mais jogado **[padrão]**), **últimas 3 partidas**. Não é painel de estatísticas |
 | **Nova partida** | 3 passos: (1) modo — cards grandes, uma frase explicando cada · (2) cores × jogadores — grade 2×2 na **mesma disposição do tabuleiro**; toca na cor, escolhe/cria jogador; em 2v2 mostra as duplas · (3) regras — só as relevantes ao modo → Iniciar. **Vem pré-preenchida com a última partida** (começar rápido) |
-| **Partida** | Tabuleiro quadrado na largura · dado na base de quem joga · abaixo: status curto ("Toque numa peça", "Sem jogadas", "🚀 Foguete! 14 casas") e botão ⋮ (Jogadores, Regras, Encerrar, Sair e salvar). Nos modos com tempo, **cronômetro** discreto acima do tabuleiro. Nada além disso na tela |
+| **Partida** | Tabuleiro quadrado na largura (no tema OG, **centralizado na tela**) · dado no quadrado de quem joga (no OG, o canto do tabuleiro com o avatar) · abaixo: status curto ("Toque numa peça", "Sem jogadas", "🚀 Foguete! 14 casas") e botão ⋮ (Jogadores, Regras, Encerrar, Sair e salvar). Nos modos com tempo, **cronômetro** discreto acima do tabuleiro. Nada além disso na tela |
 | **Fim da partida** | Pódio (avatar, cor, Δ Elo), duração, estatísticas resumidas (comidas, poderes, seis) sem despejar tudo; "Revanche" e "Início". Comemoração curta, sem travar |
 | **Jogadores** | Lista com avatar, nome, Elo do modo mais jogado; + criar; toque abre detalhes; editar/excluir |
 | **Ranking** | Seletor de modo, filtro de período, tabela |
 | **Histórico** | Lista (data, modo, vencedor, participantes). Ao abrir: resumo + estatísticas por jogador + **linha do tempo com horário** ("19:44 João comeu Maria", "19:45 Ana pegou 🚀 e voou 14 casas") |
-| **Ajustes** | Sons, vibração (Desligada / Suave / Normal), auto-move, modo do dado (física real / sorteio), aparência (Creme / Aurora), Exportar backup, Importar backup, apagar tudo, versão |
+| **Ajustes** | Sons, vibração (Desligada / Suave / Normal), auto-move, aparência (Creme / Aurora), pacote de ícones, Exportar backup, Importar backup, apagar tudo, versão |
 
 - **Retomar partida:** salva a cada jogada; fechou o app, volta de onde parou. Sem "desfazer".
 - Sons sintetizados via WebAudio (dado rolando/parando, peça, captura, poder, vitória), com toggle.
@@ -242,7 +241,7 @@ Three.js/cannon-es são **camada de apresentação** do dado: entregam um númer
 | **4. Modos** | Rápido, 5 Minutos, 2v2, 2v2 Poderes; adicionar/remover/substituir/trocar cor/pausar na partida. **Deathmatch por último** (motor em tempo real é o mais complexo) | ✅ (Deathmatch com dado por jogador fixo na base; o dado rolando pelo tabuleiro fica pra fase 7) |
 | **5. Persistência** | Retomar partida, histórico com linha do tempo, backup JSON | adiantada na fase 2 (ver abaixo) |
 | **6. Elo** | Cálculo, ranking por modo, filtros, detalhes do jogador com gráfico | ✅ |
-| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final, modo física real × sorteio | ✅ |
+| **7. Dado físico** | Three.js + cannon-es, arrasto, colisões, face final — resultado sempre pré-sortado, animação só pousa na face certa | ✅ |
 | **8. Polimento** | Sons, vibração, animações, responsividade, PWA/offline, ícone, GitHub Pages | em andamento (dado físico rola pelo tabuleiro inteiro) |
 
 ### O que a fase 2 entregou (além do combinado)
@@ -264,7 +263,7 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
   horário** (começo, saídas da base, capturas, três 6, chegadas, fim). Revanche com os mesmos · apagar.
   A partida entra no histórico **no instante em que acaba** (mesmo que o app feche durante a animação).
 - **Ranking:** seletor de modo + período (semana/mês/ano/tudo). Desde a fase 6, o Elo é recalculado retroativamente a partir do histórico completo.
-- **Ajustes:** sons, vibração (3 níveis), mover sozinho, modo do dado (sorteio × física real), aparência (Creme × Aurora), **exportar/importar backup JSON**
+- **Ajustes:** sons, vibração (3 níveis), mover sozinho, aparência (Creme × Aurora), pacote de ícones, **exportar/importar backup JSON**
   (jogadores + histórico + ajustes), apagar tudo, versão.
 - **Dentro da partida:** menu ⋮ → Jogadores agora usa o cadastro pra adicionar/substituir; fotos aparecem na base.
 - **[padrão]** Fotos não vão pro histórico (viram 🙂 no arquivo); a UI resolve o avatar atual pelo id do jogador.
@@ -307,7 +306,7 @@ do que deixar abas vazias. Por isso parte das fases 5 e 6 veio junto:
 ### O que as fases 6 e 7 entregaram
 
 - **Elo** (`src/lib/elo.ts`): rating inicial 1000, K=32, cálculo par a par em partidas individuais e por média das duplas no 2v2. O replay é sempre feito a partir do histórico, em ordem cronológica; partidas abandonadas não alteram o rating. Jogadores adicionados no meio entram com 1000, e removidos/substituídos permanecem como últimos para evitar proteção artificial do Elo. A tela Ranking mostra o Elo por modo, partidas, vitórias e Δ do período; o detalhe do jogador mostra a evolução em gráfico.
-- **Dado físico** (`src/lib/die/` + `src/ui/PhysDice.svelte`): cena Three.js com corpo cannon-es, colisões com as bordas, sombra, arestas na cor do jogador, arrasto/toque e leitura da face superior. Se WebGL não estiver disponível, o componente cai automaticamente no dado CSS já existente. Ajustes → Dado alterna entre sorteio + animação e física real; nenhum resultado é decidido pela camada visual.
+- **Dado físico** (`src/lib/die/` + `src/ui/PhysDice.svelte`): cena Three.js com corpo cannon-es, colisões com as bordas, sombra, arestas na cor do jogador e arrasto/toque. O valor vem do sorteio feito no toque (`roll()` recebe `forceValue`); a física é só animação e `finish()` corrige o pouso para a face sorteada. Sem WebGL, o componente cai automaticamente no dado CSS. Nenhum resultado é decidido pela camada visual.
 
 ## 13. Fora de escopo (por enquanto)
 

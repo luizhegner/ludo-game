@@ -84,8 +84,9 @@ Sem `npm test` verde + `npm run check` limpo, a mudança não está pronta.
   vale o fallback (emoji/desenho/síntese). Convenções de nome e formato em
   `ARTE.md` e `SONS.md`.
 - **Dado físico** (`src/lib/die/`, Three.js + cannon-es): é **camada de
-  apresentação**. Com `diceMode: 'seeded'` o número é sorteado antes e a simulação
-  termina na face certa; nenhum resultado vem da física.
+  apresentação**. O número é sorteado no instante do toque, antes do deslize, e o
+  3D só anima até pousar na face sorteada (`forceValue` em `roll()`); nenhum
+  resultado vem da física (não existe modo "física real").
 
 ## 5. Mapa rápido do projeto
 

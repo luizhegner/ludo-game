@@ -16,8 +16,6 @@ export interface Settings {
    */
   haptics: HapticsLevel;
   autoMove: boolean;
-  /** 'physics' = face que ficou pra cima; 'seeded' = sorteio + animação. */
-  diceMode: 'seeded' | 'physics';
   /** Fundo: creme liso, "aurora" (manchas de cor desfocadas em movimento) ou "og" (mesa escura do jogo original). */
   theme: Theme;
   /**
@@ -40,7 +38,6 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
   haptics: 'soft',
   autoMove: true,
-  diceMode: 'seeded',
   theme: 'cream',
   soundPack: 'default',
   iconPack: 'default',
@@ -55,7 +52,6 @@ function sanitize(v: unknown): Partial<Settings> {
   if (typeof o.haptics === 'boolean') out.haptics = o.haptics ? 'soft' : 'off';
   else if (o.haptics === 'off' || o.haptics === 'soft' || o.haptics === 'normal') out.haptics = o.haptics;
   if (typeof o.autoMove === 'boolean') out.autoMove = o.autoMove;
-  if (o.diceMode === 'seeded' || o.diceMode === 'physics') out.diceMode = o.diceMode;
   if (o.theme === 'cream' || o.theme === 'aurora' || o.theme === 'og') out.theme = o.theme;
   if (o.soundPack === 'default' || o.soundPack === 'og') out.soundPack = o.soundPack;
   if (o.iconPack === 'default' || o.iconPack === 'og') out.iconPack = o.iconPack;
@@ -88,7 +84,6 @@ export function applySettings(patch: Partial<Settings>, reset = false): void {
   settings.sound = next.sound;
   settings.haptics = next.haptics;
   settings.autoMove = next.autoMove;
-  settings.diceMode = next.diceMode;
   settings.theme = next.theme;
   settings.soundPack = next.soundPack;
   settings.iconPack = next.iconPack;

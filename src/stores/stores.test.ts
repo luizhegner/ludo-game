@@ -193,10 +193,12 @@ describe('linha do tempo', () => {
 
 describe('ajustes', () => {
   it('aplica parcial, ignora lixo e volta ao padrão', () => {
-    applySettings({ sound: false, diceMode: 'physics', autoMove: 'sim' as unknown as boolean });
+    applySettings({ sound: false, autoMove: 'sim' as unknown as boolean, diceMode: 'physics' } as Partial<typeof DEFAULT_SETTINGS>);
     expect(settings.sound).toBe(false);
-    expect(settings.diceMode).toBe('physics');
     expect(settings.autoMove).toBe(true);
+    // chave antiga do modo do dado: ignorada e não persiste (o resultado nunca vem da física)
+    expect(settings as unknown as Record<string, unknown>).not.toHaveProperty('diceMode');
+    expect(JSON.parse(localStorage.getItem('ludo.settings.v1')!)).not.toHaveProperty('diceMode');
     applySettings({}, true);
     expect(settings).toEqual(DEFAULT_SETTINGS);
   });

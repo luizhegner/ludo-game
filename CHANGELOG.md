@@ -24,6 +24,16 @@ versionamento [semântico](https://semver.org/lang/pt-BR/).
   peça adversária joga de novo — vale também pro pouso do dado personalizável e pro
   fogo; cair no parceiro (2v2) não conta. O Deathmatch continua sem jogada extra de
   nenhum tipo (não há "vez").
+- **O resultado do dado nunca mais vem da física.** A seção "Dado" dos Ajustes e o
+  modo "Física real" saíram do jogo: o número é sorteado no instante do toque, antes
+  do deslize, e o dado 3D é só animação — se parar na face errada, o pouso é corrigido
+  suavemente para a face sorteada. Assim, deslizar sempre do mesmo jeito não vira
+  vantagem. Sem WebGL, o fallback CSS continua igual.
+- **Tema OG com o tabuleiro no meio da tela** (como no jogo original): os avatares dos
+  jogadores agora ficam nos **cantos do tabuleiro** (avatar emoldurado + nome + ✕ ☠),
+  e o quadrado do jogador da vez é justamente onde o dado espera — o avatar vira o
+  botão de rolar, com a mãozinha 👉 marcando a vez. No Deathmatch cada dado também
+  descansa no canto da própria base.
 
 ## [0.1.0] — 2026-09-08
 

@@ -62,10 +62,13 @@ describe('páginas com dados', () => {
     const ana = players.create('Ana', '🦊');
     const bia = players.create('Bia', '🐼');
     const t0 = Date.now() - 3 * 86400000; // 3 dias atrás
+    // âncora no meio-dia de hoje: o agrupamento "Hoje" não depende da hora em que o teste roda
+    const noon = new Date();
+    noon.setHours(12, 0, 0, 0);
     history.add(finished(ana.id, bia.id, t0));
     history.add(finished(bia.id, ana.id, t0 + 3600_000));
-    history.add(finished(ana.id, bia.id, Date.now() - 600_000, 'quick'));
-    history.add(endGame(createGame({ rules: DEFAULT_RULES, players: [{ color: 'green', playerId: ana.id, name: 'Ana', avatar: '🦊' }, { color: 'blue', playerId: bia.id, name: 'Bia', avatar: '🐼' }], seed: 1, now: Date.now() - 300_000 }), false, Date.now() - 200_000));
+    history.add(finished(ana.id, bia.id, noon.getTime(), 'quick'));
+    history.add(endGame(createGame({ rules: DEFAULT_RULES, players: [{ color: 'green', playerId: ana.id, name: 'Ana', avatar: '🦊' }, { color: 'blue', playerId: bia.id, name: 'Bia', avatar: '🐼' }], seed: 1, now: noon.getTime() - 300_000 }), false, noon.getTime() - 200_000));
 
     const app = mount(App, { target: document.getElementById('app')! });
     flushSync();
@@ -224,8 +227,9 @@ describe('páginas com dados', () => {
     expect(JSON.parse(localStorage.getItem('ludo.settings.v1')!).sound).toBe(false);
     expect(ogSounds.disabled).toBe(true); // sem sons, o pacote não importa
 
-    clickText('Física real', '.opt');
-    expect(JSON.parse(localStorage.getItem('ludo.settings.v1')!).diceMode).toBe('physics');
+    // seção "Dado" saiu: o número é sempre pré-sortado; a física é só animação
+    expect(text()).not.toContain('Física real');
+    expect(text()).not.toContain('Sorteio + animação');
 
     const origConfirm = window.confirm;
     window.confirm = () => true;
